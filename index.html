@@ -253,7 +253,14 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
 .art .thumb { height: 80px; border: 2px solid var(--c3); border-radius: 4px; }
 .art b { font-weight: 400; font-size: 21px; line-height: 1.1; display: block; margin: 3px 0; }
 .art p { margin: 0; font-size: 18px; color: var(--c2); }
-@media (max-width: 520px) { .art { grid-template-columns: 1fr; } .art .thumb { height: 120px; } }
+@media (max-width: 560px) {
+  /* phones: swipe sideways through the top headlines, compact story list */
+  .tops { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 80%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; }
+  .top { scroll-snap-align: start; }
+  .art { grid-template-columns: 88px minmax(0, 1fr); gap: 10px; padding: 8px 2px; }
+  .art .thumb { height: 64px; }
+  .chips .btn { padding: 8px 9px; font-size: 8px; }
+}
 </style>
 </head>
 <body>
@@ -933,6 +940,8 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
 
   // ---------- daily news ----------
   let newsData = News.load(), newsFilter = "all", newsBusy = false;
+  // The PC app reads the feeds itself; the published web app reads the hourly news.json next to it.
+  const newsOk = !!desktop || webApp;
   const srcName = id => (News.SOURCES.find(x => x.id === id) || {}).name || id;
   function ago(iso) {
     if (!iso) return "";
@@ -954,8 +963,8 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
       <div><span class="src">${esc(srcName(a.src))} \u00b7 ${ago(a.date)}</span><b>${esc(a.title)}</b>${a.summary ? `<p>${esc(a.summary)}</p>` : ""}</div></a></li>`).join("");
     const errs = Object.entries((newsData && newsData.errors) || {}).map(([id, m]) => `${srcName(id)}: ${String(m).replace(/\.$/, "")}`);
     $("newsWhen").textContent = newsBusy ? "Loading..." : newsData && newsData.fetchedAt ? `Updated ${ago(new Date(newsData.fetchedAt).toISOString())}` : "";
-    $("newsRefresh").disabled = !desktop || newsBusy;
-    $("newsMsg").textContent = !desktop ? "News loads in Pitch Pal on your PC."
+    $("newsRefresh").disabled = !newsOk || newsBusy;
+    $("newsMsg").textContent = !newsOk ? "News loads in the installed app."
       : newsBusy ? ""
       : !items.length && errs.length ? `Couldn't load the news (${errs.join("; ")}). Check your internet connection, then press Refresh.`
       : !items.length ? "No stories yet. Press Refresh."
@@ -963,7 +972,7 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
   }
   $("chips").addEventListener("click", e => { const b = e.target.closest("[data-src]"); if (!b) return; newsFilter = b.dataset.src; renderNews(); });
   async function refreshNews(force) {
-    if (!desktop) { renderNews(); return; }
+    if (!newsOk) { renderNews(); return; }
     newsBusy = true; renderNews();
     try { newsData = await News.refresh(force); } catch (e) {}
     newsBusy = false; renderNews();
@@ -1045,8 +1054,12 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
     $("pActive").closest(".box").querySelector(".note").textContent = "On iPhone the nudge appears inside Pitch Pal when you open it after these times, if tasks are still open. Clear a time to turn it off.";
   }
   if (desktop || webApp) $("skip").hidden = true;
-  // The calendar needs the PC app, so the phone/web version leaves it out.
-  if (!desktop) { $("weekTitle").closest("section").hidden = true; $("calOff").closest(".box").hidden = true; }
+  // The calendar needs the PC app, so the phone/web version leaves it out,
+  // and puts the news and daily reading right under today's training.
+  if (!desktop) {
+    $("weekTitle").closest("section").hidden = true; $("calOff").closest(".box").hidden = true;
+    document.querySelector(".main").after($("newsTitle").closest("section"), $("readTitle").closest("section"));
+  }
   // Without the desktop app there are no popups, so the nudge appears in the text box.
   function webNudge() {
     if (desktop || toastBusy || matchShow) return;

@@ -1,6 +1,6 @@
 {
   "name": "pitch-pal",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "A handheld-game-style soccer player who lives on your desktop and whose form depends on your daily tasks.",
   "main": "main.js",
   "scripts": {

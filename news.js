@@ -15,9 +15,11 @@
 
   // Child elements by local name, ignoring namespace prefixes (media:, dc:, content:).
   const kids = (el, name) => [...el.children].filter(n => n.localName === name);
+  // Element text including CDATA sections (some XML parsers leave CDATA out of textContent).
+  const txt = el => el ? [...el.childNodes].map(n => n.nodeType === 4 ? n.nodeValue : n.textContent).join("") : "";
   const first = (el, ...names) => { for (const n of names) { const k = kids(el, n)[0]; if (k) return k; } return null; };
   const htmlText = html => {
-    const d = new DOMParser().parseFromString(String(html || ""), "text/html");
+    const d = new DOMParser().parseFromString("<!doctype html><html><body>" + String(html || "") + "</body></html>", "text/html");
     return (d.body.textContent || "").replace(/\s+/g, " ").trim();
   };
   const firstImg = html => {
@@ -25,18 +27,18 @@
   };
 
   function parseFeed(xml, src) {
-    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    const doc = new DOMParser().parseFromString(xml, "text/xml");
     if (doc.getElementsByTagName("parsererror").length) throw new Error("The feed couldn't be read.");
     const items = [...doc.getElementsByTagName("item"), ...doc.getElementsByTagName("entry")];
     return items.map(it => {
-      let title = (first(it, "title") || {}).textContent || "";
+      let title = txt(first(it, "title"));
       title = htmlText(title).replace(/\s+[-|]\s+(AP News|Associated Press)$/i, "");
       const linkEl = kids(it, "link").find(l => !l.getAttribute("rel") || l.getAttribute("rel") === "alternate") || first(it, "link");
-      const link = (linkEl && (linkEl.getAttribute("href") || linkEl.textContent) || "").trim();
+      const link = (linkEl && (linkEl.getAttribute("href") || txt(linkEl)) || "").trim();
       const dateEl = first(it, "pubDate", "published", "updated", "date");
-      const date = dateEl ? new Date(dateEl.textContent.trim()) : null;
+      const date = dateEl ? new Date(txt(dateEl).trim()) : null;
       const descEl = first(it, "description", "summary", "encoded", "content");
-      const descHtml = descEl ? descEl.textContent : "";
+      const descHtml = txt(descEl);
       let summary = htmlText(descHtml).replace(/Continue reading\.*$/i, "").trim();
       if (src.id === "ap" && /news\.google\.com/.test(link)) summary = ""; // Google's description only repeats the headline
       if (summary.toLowerCase().startsWith(title.toLowerCase().slice(0, 40))) summary = summary.slice(title.length).trim();
@@ -52,7 +54,7 @@
       for (const g of kids(it, "group")) for (const m of [...kids(g, "content"), ...kids(g, "thumbnail")]) if (!img && m.getAttribute("url")) img = m.getAttribute("url");
       const enc = kids(it, "enclosure").find(e => (e.getAttribute("type") || "").startsWith("image"));
       if (!img && enc) img = enc.getAttribute("url");
-      if (!img) img = firstImg(descHtml) || firstImg((first(it, "encoded") || {}).textContent);
+      if (!img) img = firstImg(descHtml) || firstImg(txt(first(it, "encoded")));
       return { src: src.id, title, link, date: date && !isNaN(date) ? date.toISOString() : "", summary, img };
     }).filter(a => a.title && /^https?:\/\//.test(a.link)).slice(0, PER_SOURCE);
   }
@@ -60,23 +62,20 @@
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } }
   function save(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
 
-  async function fetchSource(src) {
+  async function fetchSource(src, getText) {
     let lastErr = null;
     for (const url of src.urls) {
       try {
-        const items = parseFeed(await window.desktop.fetchFeed(url), src);
+        const items = parseFeed(await getText(url), src);
         if (items.length) return items;
       } catch (e) { lastErr = e; }
     }
     throw lastErr || new Error("No stories right now.");
   }
 
-  // Refresh every source; keep the previous stories for any source that fails this time.
-  async function refresh(force) {
-    const prev = load();
-    if (!window.desktop || !window.desktop.fetchFeed) return prev || { items: [], errors: {}, fetchedAt: 0, offline: true };
-    if (!force && prev && Date.now() - prev.fetchedAt < MAX_AGE) return prev;
-    const results = await Promise.allSettled(SOURCES.map(fetchSource));
+  // Read every source; keep the previous stories for any source that fails this time.
+  async function collect(getText, prev) {
+    const results = await Promise.allSettled(SOURCES.map(src => fetchSource(src, getText)));
     const items = [], errors = {};
     results.forEach((r, i) => {
       const id = SOURCES[i].id;
@@ -87,13 +86,32 @@
       }
     });
     const seen = new Set();
-    const data = {
+    return {
       fetchedAt: Date.now(), errors,
       items: items.filter(a => !seen.has(a.link) && seen.add(a.link)).sort((a, b) => (b.date || "").localeCompare(a.date || "")),
     };
-    save(data);
-    return data;
   }
 
-  window.News = { SOURCES, parseFeed, refresh, load };
+  // The PC app reads the feeds itself. The phone/web version reads news.json, which a
+  // GitHub workflow rebuilds every hour next to the app (news sites block direct reads from web pages).
+  async function refresh(force) {
+    const prev = load();
+    if (!force && prev && Date.now() - prev.fetchedAt < MAX_AGE) return prev;
+    if (window.desktop && window.desktop.fetchFeed) {
+      const data = await collect(url => window.desktop.fetchFeed(url), prev);
+      save(data); return data;
+    }
+    if (!/^https?:$/.test(location.protocol)) return prev || { items: [], errors: {}, fetchedAt: 0, offline: true };
+    try {
+      const res = await fetch("news.json", { cache: "no-store" });
+      if (!res.ok) throw new Error(`error ${res.status}`);
+      const data = await res.json();
+      if (!data || !Array.isArray(data.items)) throw new Error("no stories");
+      save(data); return data;
+    } catch (e) {
+      return prev || { items: [], errors: {}, fetchedAt: 0, offline: true };
+    }
+  }
+
+  window.News = { SOURCES, parseFeed, collect, refresh, load };
 })();

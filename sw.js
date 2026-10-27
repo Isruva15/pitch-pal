@@ -1,6 +1,6 @@
 // Offline support for the web app: serve the saved copy instantly, refresh it in the background.
 // Bump VERSION whenever the app's files change so phones pick up the new version.
-const VERSION = "pitchpal-web-5.0.2";
+const VERSION = "pitchpal-web-5.0.3";
 const FILES = ["./", "index.html", "core.js", "gb.js", "sfx.js", "news.js", "reading.js", "manifest.webmanifest",
   "fonts/PressStart2P.woff2", "fonts/VT323.woff2", "icons/apple-touch-icon.png", "icons/icon-192.png", "icons/icon-512.png"];
 
@@ -16,6 +16,11 @@ self.addEventListener("fetch", e => {
   const url = new URL(req.url);
   const own = url.origin === location.origin, fonts = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
   if (!own && !fonts) return;
+  // Stories change hourly: try the network first, fall back to the last saved copy offline.
+  if (own && url.pathname.endsWith("/news.json")) {
+    e.respondWith(caches.open(VERSION).then(cache => fetch(req).then(res => { if (res.ok) cache.put(req, res.clone()); return res; }).catch(() => cache.match(req, { ignoreSearch: true }))));
+    return;
+  }
   e.respondWith(caches.open(VERSION).then(async cache => {
     const hit = await cache.match(req, { ignoreSearch: own });
     const fresh = fetch(req).then(res => { if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone()); return res; }).catch(() => hit);
