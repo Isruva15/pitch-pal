@@ -695,7 +695,9 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
   $("chart").addEventListener("pointermove", chartHover);
   $("chart").addEventListener("pointerdown", chartHover);
   $("chart").addEventListener("pointerleave", e => {
-    if (e.pointerType === "touch") return; // on a phone, keep the reading until the next tap $("tip").hidden = true; const c = $("cross"); if (c) c.setAttribute("visibility", "hidden"); const h = $("hoverDots"); if (h) h.innerHTML = ""; });
+    // on a phone, keep the reading until the next tap
+    if (e.pointerType === "touch") return;
+    $("tip").hidden = true; const c = $("cross"); if (c) c.setAttribute("visibility", "hidden"); const h = $("hoverDots"); if (h) h.innerHTML = ""; });
 
   // ---------- badges ----------
   function renderBadges() {
