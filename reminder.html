@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pitch Pal reminder</title>
+<style>
+/* Bottom-left popup styled as a handheld-game dialog: portrait on the left, message, open tasks and a menu on the right. */
+@font-face { font-family: "PS2P Local"; src: url("fonts/PressStart2P.woff2") format("woff2"); }
+@font-face { font-family: "VT323 Local"; src: url("fonts/VT323.woff2") format("woff2"); }
+:root { --c0: #f8f8f0; --c1: #b8d0e8; --c2: #5878a8; --c3: #181828; }
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; }
+body { font: 20px/1.05 "VT323 Local", "Lucida Console", monospace; color: var(--c3); display: flex; align-items: flex-end; }
+.card {
+  position: relative; width: 100%; display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 14px 14px 12px 12px;
+  background: var(--c0); border: 4px solid var(--c3); border-radius: 10px;
+  box-shadow: inset 0 0 0 3px var(--c0), inset 0 0 0 5px var(--c2);
+  animation: rise .35s steps(6) both;
+}
+@keyframes rise { from { transform: translateY(110%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .card { animation: none; } }
+canvas { width: 88px; height: 124px; image-rendering: pixelated; align-self: center; background: var(--c1); border: 3px solid var(--c3); border-radius: 6px; }
+.body { min-width: 0; display: grid; gap: 7px; align-content: start; }
+h1 { font: 10px/1.6 "PS2P Local", "Courier New", monospace; margin: 0 22px 0 0; text-transform: uppercase; }
+p { margin: 0; }
+ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; max-height: 66px; overflow: auto; }
+li label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+li.done label span { color: var(--c2); text-decoration: line-through; }
+input[type=checkbox] { appearance: none; flex: none; width: 16px; height: 16px; margin: 0; cursor: pointer; border: 3px solid var(--c3); border-radius: 3px; background: var(--c0); }
+input[type=checkbox]:checked { background: var(--c2); box-shadow: inset 0 0 0 2px var(--c0); }
+.menu { display: flex; gap: 8px; flex-wrap: nowrap; margin-top: 2px; }
+.menu button { position: relative; white-space: nowrap; font: 8px/1 "PS2P Local", "Courier New", monospace; text-transform: uppercase; background: none; border: 0; padding: 6px 0 6px 14px; cursor: pointer; color: var(--c3); }
+.menu button::before { content: "\25B6"; position: absolute; left: 0; opacity: 0; }
+.menu button:hover::before, .menu button:focus-visible::before { opacity: 1; }
+.close { position: absolute; top: 8px; right: 10px; background: none; border: 0; color: var(--c2); font: 10px "PS2P Local", monospace; cursor: pointer; padding: 4px; }
+.close:hover { color: var(--c3); }
+:focus-visible { outline: 2px dashed var(--c2); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="card" role="dialog" aria-labelledby="title">
+  <canvas id="c" width="44" height="62" aria-hidden="true"></canvas>
+  <div class="body">
+    <h1 id="title">Training time!</h1>
+    <p id="text"></p>
+    <ul id="list"></ul>
+    <div class="menu">
+      <button id="open" type="button">Open</button>
+      <button id="snooze" type="button">Snooze 1 hr</button>
+      <button id="later" type="button">Not today</button>
+    </div>
+  </div>
+  <button class="close" id="close" type="button" aria-label="Dismiss">x</button>
+</div>
+<script src="core.js"></script>
+<script src="gb.js"></script>
+<script src="sfx.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const close = () => window.desktop ? window.desktop.closeReminder() : window.close();
+  let S = PP.load(), shown = [], closing = false;
+
+  function render() {
+    S = PP.load();
+    GB.PALETTES[S.palette || "color"].shades.forEach((c, i) => document.documentElement.style.setProperty("--c" + i, c));
+    const n = PP.nudge(S);
+    $("title").textContent = n.title; $("text").textContent = n.text;
+    // Keep ticked tasks in the list so the tick is visible; only show tasks that were open when it popped up.
+    if (!shown.length) shown = PP.todayTasks(S).filter(t => !t.done).map(t => t.id);
+    const tasks = shown.map(id => S.tasks.find(t => t.id === id)).filter(Boolean);
+    $("list").innerHTML = tasks.map(t => `<li class="${t.done ? "done" : ""}"><label><input type="checkbox" data-id="${t.id}" ${t.done ? "checked" : ""}><span>${esc(t.name)}</span></label></li>`).join("");
+    if (!closing && tasks.length && !PP.todayTasks(S).some(t => !t.done)) { closing = true; setTimeout(close, 3500); }
+  }
+
+  $("list").addEventListener("change", e => {
+    PP.toggleTask(e.target.dataset.id, e.target.checked); render();
+    if (e.target.checked) SFX.play(PP.todayTasks(S).every(t => t.done) ? "allDone" : "tick", S);
+  });
+  $("open").addEventListener("click", () => { window.desktop && window.desktop.openDashboard(); close(); });
+  $("snooze").addEventListener("click", () => { PP.update(s => s.snoozeUntil = Date.now() + 3600e3); close(); });
+  $("later").addEventListener("click", () => { PP.update(s => { s.snoozeUntil = 0; s.sent = { ...(s.sent || {}), active: PP.dayKey(PP.now(s)), evening: PP.dayKey(PP.now(s)) }; }); close(); });
+  $("close").addEventListener("click", close);
+  addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+  addEventListener("storage", e => { if (e.key === PP.KEY) render(); });
+
+  SFX.play("chime", S);
+
+  const ctx = $("c").getContext("2d");
+  function frame(ms) {
+    const t = ms / 1000, f = Math.floor(t * 4), m = PP.mood(S).k, cheer = S.cheerUntil > Date.now();
+    const face = cheer || m === "fire" ? "happy" : m === "struggling" ? "tired" : m === "injured" ? "hurt" : (t % 4.2) < 0.15 ? "blink" : "normal";
+    const p = { ...GB.look(S), face, sit: m === "injured" && !cheer, tear: f % 4,
+      armL: cheer ? "up" : m === "struggling" ? "low" : "down",
+      armR: cheer ? "up" : m === "struggling" ? "low" : m === "injured" ? "down" : f % 2 ? "wave" : "up" };
+    ctx.clearRect(0, 0, 44, 62);
+    ctx.drawImage(GB.portrait(p, S.palette || "color"), 0, 0);
+    requestAnimationFrame(frame);
+  }
+  render(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

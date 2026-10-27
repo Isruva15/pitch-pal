@@ -1,0 +1,27 @@
+# Builds the Windows installer and publishes it as a GitHub release when a version tag (v5.0.1, ...) is pushed.
+# Installed copies of Pitch Pal check these releases and update themselves.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # CSC_LINK / CSC_KEY_PASSWORD are optional repository secrets: add them once you have a code-signing certificate.
+      - run: npx electron-builder --win nsis --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}

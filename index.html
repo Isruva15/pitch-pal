@@ -1,0 +1,1233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pitch Pal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+/* Layout: a handheld-game "trainer card" on top, the top-down stadium screen with its text box beside the condition and training menus, then calendar, customize and reminder panels. Colours come from the chosen 4-shade screen palette. */
+@font-face { font-family: "PS2P Local"; src: url("fonts/PressStart2P.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "VT323 Local"; src: url("fonts/VT323.woff2") format("woff2"); font-display: swap; }
+:root {
+  --c0: #f8f8f0;
+  --c1: #b8d0e8;
+  --c2: #5878a8;
+  --c3: #181828;
+  --hp-good: #48c048;
+  --hp-mid: #f8b800;
+  --hp-low: #f04030;
+  --font-pixel: "PS2P Local", "Press Start 2P", "Courier New", monospace;
+  --font-term: "VT323 Local", "VT323", "Lucida Console", monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--c1);
+  background-image: radial-gradient(var(--c0) 1px, transparent 1px);
+  background-size: 8px 8px;
+  color: var(--c3);
+  font: 21px/1.15 var(--font-term);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 24px;
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px dashed var(--c2); outline-offset: 2px; }
+
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+/* Menu box: thick outer line, a light gap, then a thin inner line. */
+.box {
+  background: var(--c0); color: var(--c3);
+  border: 4px solid var(--c3); border-radius: 10px;
+  box-shadow: inset 0 0 0 3px var(--c0), inset 0 0 0 5px var(--c2);
+  padding: 18px;
+}
+h2 { font-family: var(--font-pixel); font-weight: 400; font-size: 12px; line-height: 1.5; margin: 0 0 10px; text-transform: uppercase; text-wrap: balance; }
+.sub, .note { color: var(--c2); font-size: 19px; margin: 0; }
+.pix { font-family: var(--font-pixel); font-size: 10px; line-height: 1.6; text-transform: uppercase; }
+
+/* trainer card */
+.card { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
+.card canvas { width: 88px; height: 124px; image-rendering: pixelated; background: var(--c1); border: 3px solid var(--c3); border-radius: 6px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 20px; }
+.fact { display: grid; gap: 4px; min-width: 0; }
+.fact .k { font-family: var(--font-pixel); font-size: 8px; color: var(--c2); text-transform: uppercase; }
+.fact .v { font-family: var(--font-pixel); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.fact.name .v { font-size: 16px; }
+.status { display: inline-block; padding: 3px 6px; border: 2px solid var(--c3); border-radius: 4px; background: var(--c1); }
+
+.main, .lower { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.lower { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+/* the screen */
+.screen { background: var(--c3); padding: 10px; border-radius: 10px 10px 30px 10px; display: grid; gap: 10px; }
+.screen canvas { display: block; width: 100%; aspect-ratio: 3 / 2; max-width: 100%; image-rendering: pixelated; border-radius: 2px; }
+.textbox { position: relative; min-height: 76px; padding: 14px 40px 14px 16px; font-family: var(--font-pixel); font-size: 11px; line-height: 2; }
+.textbox::after { content: "\25BC"; position: absolute; right: 14px; bottom: 8px; font-size: 10px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .textbox::after { animation: none; } }
+
+.side { display: grid; gap: 16px; }
+.hp { display: grid; grid-template-columns: 74px 1fr; gap: 4px 10px; align-items: center; margin-bottom: 10px; }
+.hp .lbl { font-family: var(--font-pixel); font-size: 9px; }
+.hp .num { grid-column: 2; justify-self: end; font-family: var(--font-pixel); font-size: 9px; color: var(--c2); }
+.bar { height: 12px; border: 3px solid var(--c3); border-radius: 8px; background: var(--c1); overflow: hidden; }
+.bar i { display: block; height: 100%; transition: width .4s steps(8); }
+
+.tasks { display: grid; gap: 2px; margin: 8px 0 0; padding: 0; list-style: none; }
+.task { position: relative; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px; padding: 7px 4px 7px 22px; border-radius: 6px; }
+.task::before { content: "\25B6"; position: absolute; left: 4px; font-size: 11px; opacity: 0; }
+.task:hover::before, .task:focus-within::before { opacity: 1; }
+.task:hover { background: var(--c1); }
+.task.done .tname { color: var(--c2); text-decoration: line-through; }
+.task input[type=checkbox] { appearance: none; width: 18px; height: 18px; margin: 0; cursor: pointer; border: 3px solid var(--c3); border-radius: 3px; background: var(--c0); }
+.task input[type=checkbox]:checked { background: var(--c2); box-shadow: inset 0 0 0 2px var(--c0); }
+.tname { min-width: 0; overflow-wrap: anywhere; cursor: pointer; font-family: var(--font-pixel); font-size: 10px; line-height: 1.6; }
+.tag { font-family: var(--font-pixel); font-size: 7px; padding: 3px 4px; border: 2px solid var(--c3); border-radius: 3px; background: var(--c1); }
+.tag.cal { background: var(--c3); color: var(--c0); }
+.x { background: none; border: 0; color: var(--c2); cursor: pointer; font-family: var(--font-pixel); font-size: 10px; padding: 4px; }
+.x:hover { color: var(--c3); }
+
+.field { background: var(--c0); border: 3px solid var(--c3); border-radius: 6px; padding: 3px 8px; min-width: 0; font: 20px/1.1 var(--font-term); text-transform: none; color: var(--c3); width: 100%; }
+input[type=color].field { padding: 2px; height: 34px; cursor: pointer; }
+.add { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; margin-top: 10px; }
+.add .field { width: auto; }
+.btn {
+  font-family: var(--font-pixel); font-size: 9px; line-height: 1; padding: 10px 12px; cursor: pointer; text-transform: uppercase;
+  background: var(--c0); color: var(--c3); border: 3px solid var(--c3); border-radius: 6px; box-shadow: 0 3px 0 var(--c3);
+}
+.btn:hover { background: var(--c1); }
+.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--c3); }
+.btn.solid { background: var(--c3); color: var(--c0); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 300px; overflow: auto; }
+.log li { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 4px 0; border-bottom: 2px dotted var(--c1); }
+.log time { color: var(--c2); }
+
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 10px; }
+.form label { display: grid; gap: 4px; font-family: var(--font-pixel); font-size: 8px; text-transform: uppercase; color: var(--c2); min-width: 0; }
+.form .wide { grid-column: 1 / -1; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.row .spacer { flex: 1; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 19px; }
+.check input { width: 18px; height: 18px; accent-color: var(--c2); }
+.sched { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.sched li { display: grid; grid-template-columns: 82px 1fr; gap: 8px; }
+.sched time { font-family: var(--font-pixel); font-size: 9px; line-height: 2.2; color: var(--c2); }
+.err { color: var(--hp-low); }
+ol.steps { margin: 6px 0 10px; padding-left: 22px; font-size: 19px; color: var(--c3); }
+
+/* task schedules and rest */
+.daysbtn { font-family: var(--font-pixel); font-size: 7px; padding: 3px 4px; border: 2px solid var(--c3); border-radius: 3px; background: var(--c0); cursor: pointer; color: var(--c3); }
+.daysbtn:hover { background: var(--c1); }
+.task { grid-template-columns: auto 1fr auto auto auto; }
+.dayedit { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px 4px 10px 22px; }
+.dayedit button { font-family: var(--font-pixel); font-size: 8px; padding: 6px 6px; border: 2px solid var(--c3); border-radius: 4px; background: var(--c0); color: var(--c3); cursor: pointer; }
+.dayedit button[aria-pressed="true"] { background: var(--c3); color: var(--c0); }
+.resting { color: var(--c2); }
+
+/* season */
+.season { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .season { grid-template-columns: minmax(0, 1fr); } }
+.tablewrap { overflow-x: auto; }
+table.league { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+table.league th { font-family: var(--font-pixel); font-weight: 400; font-size: 8px; text-align: right; padding: 6px 6px; color: var(--c2); border-bottom: 3px solid var(--c3); }
+table.league th:nth-child(2), table.league td:nth-child(2) { text-align: left; }
+table.league td { padding: 5px 6px; text-align: right; border-bottom: 2px dotted var(--c1); font-size: 20px; }
+table.league tr.you td { background: var(--c3); color: var(--c0); }
+table.league tr.up td:first-child { box-shadow: inset 4px 0 0 var(--hp-good); }
+table.league tr.down td:first-child { box-shadow: inset 4px 0 0 var(--hp-low); }
+body.mono table.league tr.up td:first-child, body.mono table.league tr.down td:first-child { box-shadow: inset 4px 0 0 var(--c2); }
+.vs { font-family: var(--font-pixel); font-size: 11px; line-height: 1.8; margin: 6px 0 10px; }
+.score { font-family: var(--font-pixel); font-size: 14px; line-height: 1.6; margin: 6px 0; }
+.formbar { height: 14px; border: 3px solid var(--c3); border-radius: 8px; background: var(--c1); overflow: hidden; margin: 6px 0 4px; }
+.formbar i { display: block; height: 100%; background: var(--c2); }
+.past { list-style: none; margin: 6px 0 0; padding: 0; font-size: 19px; }
+
+/* progress */
+.prog { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .prog { grid-template-columns: minmax(0, 1fr); } }
+.chartbox { position: relative; margin: 0; min-width: 0; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--font-pixel); font-size: 8px; margin-bottom: 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { width: 22px; height: 6px; }
+#chart { width: 100%; height: auto; display: block; overflow: visible; }
+#chart text { font-family: var(--font-term); font-size: 15px; fill: var(--c2); }
+#chart .dl { font-family: var(--font-pixel); font-size: 8px; fill: var(--c3); }
+.tip { position: absolute; pointer-events: none; background: var(--c0); border: 3px solid var(--c3); border-radius: 6px; padding: 6px 8px; font-size: 18px; line-height: 1.15; white-space: nowrap; z-index: 2; }
+.tip b { font-family: var(--font-pixel); font-weight: 400; font-size: 8px; display: block; margin-bottom: 4px; }
+.heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: 3px; margin-top: 6px; overflow-x: auto; padding-bottom: 4px; }
+.heat i { border: 2px solid var(--c1); border-radius: 2px; }
+.heat i.l0, .heatkey i.l0 { background: var(--c0); border-color: var(--c2); }
+.heat i.l1, .heatkey i.l1 { background: var(--c1); border-color: var(--c2); }
+.heat i.l2, .heatkey i.l2 { background: var(--c2); border-color: var(--c2); }
+.heat i.l3, .heatkey i.l3 { background: var(--c3); border-color: var(--c3); }
+.heat i.rest, .heatkey i.rest { background: repeating-linear-gradient(45deg, var(--c1) 0 2px, var(--c0) 2px 4px); border-color: var(--c2); }
+.heat i.today { outline: 2px solid var(--c3); outline-offset: 1px; }
+.heatkey { display: flex; gap: 4px; align-items: center; font-size: 17px; color: var(--c2); margin-top: 6px; flex-wrap: wrap; }
+.heatkey i { width: 12px; height: 12px; display: inline-block; border: 2px solid var(--c2); border-radius: 2px; }
+details.tablev { margin-top: 12px; }
+details.tablev summary { cursor: pointer; font-family: var(--font-pixel); font-size: 8px; color: var(--c2); }
+details.tablev .tablewrap { max-height: 240px; overflow: auto; margin-top: 8px; }
+
+/* badges */
+.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.badge { display: grid; grid-template-columns: 44px 1fr; gap: 10px; align-items: center; padding: 8px; border: 3px solid var(--c3); border-radius: 6px; min-width: 0; }
+.badge.locked { border-style: dashed; border-color: var(--c2); }
+.badge canvas { width: 44px; height: 44px; image-rendering: pixelated; }
+.badge b { font-family: var(--font-pixel); font-weight: 400; font-size: 9px; line-height: 1.5; display: block; }
+.badge span { font-size: 17px; color: var(--c2); display: block; line-height: 1.05; }
+.badge em { font-style: normal; font-size: 17px; color: var(--c3); display: block; }
+.lock { color: var(--c2); font: 17px/1.1 var(--font-term); text-transform: none; }
+.form label.check { display: flex; gap: 8px; align-items: center; font: 19px/1.1 var(--font-term); text-transform: none; color: var(--c3); flex-wrap: wrap; }
+
+/* week calendar */
+.headrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.headrow h2 { margin: 0; }
+.headrow .spacer { flex: 1; }
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 900px) { .week { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); } }
+.day { border: 3px solid var(--c3); border-radius: 6px; min-height: 150px; display: flex; flex-direction: column; min-width: 0; }
+.day h3 { margin: 0; padding: 6px 8px; font-family: var(--font-pixel); font-weight: 400; font-size: 9px; line-height: 1.5; border-bottom: 3px solid var(--c3); background: var(--c1); text-transform: uppercase; }
+.day.today h3 { background: var(--c3); color: var(--c0); }
+.day.today { box-shadow: 0 0 0 3px var(--c2); }
+.day ul { list-style: none; margin: 0; padding: 6px; display: grid; gap: 6px; align-content: start; }
+.ev { display: grid; gap: 1px; padding: 4px 6px; border-left: 4px solid var(--c2); background: var(--c0); min-width: 0; }
+.ev.fit { border-left-color: var(--hp-good); }
+.ev.all { border-left: 0; background: var(--c2); color: var(--c0); }
+.ev.past { opacity: .55; }
+.ev time { font-family: var(--font-pixel); font-size: 7px; line-height: 1.6; color: var(--c2); }
+.ev.all time { color: var(--c0); }
+.ev span { font-size: 19px; line-height: 1.05; overflow-wrap: anywhere; }
+.day .none { color: var(--c2); font-size: 18px; padding: 6px 8px; }
+.calempty { color: var(--c2); }
+
+/* daily reading */
+.reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.read { border: 3px solid var(--c3); border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.read .kind { font-family: var(--font-pixel); font-size: 9px; text-transform: uppercase; }
+.read blockquote { margin: 0; font-size: 23px; line-height: 1.15; white-space: pre-line; flex: 1; }
+.read cite { font-style: normal; color: var(--c2); font-size: 19px; }
+.read cite b { color: var(--c3); font-weight: 400; }
+.read .row { margin-top: 0; }
+.read .count { font-family: var(--font-pixel); font-size: 8px; color: var(--c2); }
+
+/* daily news */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.chips .btn[aria-pressed="true"] { background: var(--c3); color: var(--c0); }
+.tops { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.top { display: flex; flex-direction: column; border: 3px solid var(--c3); border-radius: 6px; overflow: hidden; color: inherit; text-decoration: none; min-width: 0; }
+.top:hover { background: var(--c1); }
+.top .thumb { aspect-ratio: 16 / 9; }
+.top div.t { padding: 10px; display: grid; gap: 6px; }
+.top b { font-weight: 400; font-size: 21px; line-height: 1.1; }
+.thumb { position: relative; background: var(--c1); overflow: hidden; }
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb .ph { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-pixel); font-size: 11px; color: var(--c2); }
+body.mono .thumb img { filter: grayscale(1) contrast(1.15); }
+body.mono .thumb::after { content: ""; position: absolute; inset: 0; background: var(--c2); mix-blend-mode: screen; opacity: .55; }
+.src { font-family: var(--font-pixel); font-size: 7px; line-height: 1.6; color: var(--c2); text-transform: uppercase; }
+.articles { list-style: none; margin: 0; padding: 0 6px 0 0; max-height: 560px; overflow-y: auto; display: grid; gap: 2px; }
+.art { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; padding: 8px; border-radius: 6px; color: inherit; text-decoration: none; }
+.art:hover, .art:focus-visible { background: var(--c1); }
+.art .thumb { height: 80px; border: 2px solid var(--c3); border-radius: 4px; }
+.art b { font-weight: 400; font-size: 21px; line-height: 1.1; display: block; margin: 3px 0; }
+.art p { margin: 0; font-size: 18px; color: var(--c2); }
+@media (max-width: 520px) { .art { grid-template-columns: 1fr; } .art .thumb { height: 120px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="box card" aria-label="Trainer card">
+    <canvas id="portrait" width="44" height="62" aria-label="Your player"></canvas>
+    <div class="facts">
+      <div class="fact name"><span class="k">Name</span><span class="v" id="fName">Rico</span></div>
+      <div class="fact"><span class="k">No.</span><span class="v" id="fNum">10</span></div>
+      <div class="fact"><span class="k">Club</span><span class="v" id="fClub">Pitch Pal FC</span></div>
+      <div class="fact"><span class="k">Division</span><span class="v" id="fDiv">Sunday League</span></div>
+      <div class="fact"><span class="k">Streak</span><span class="v" id="fStreak">0</span></div>
+      <div class="fact"><span class="k">Fans</span><span class="v" id="fFans">0</span></div>
+      <div class="fact"><span class="k">Record W-D-L</span><span class="v" id="fRec">0-0-0</span></div>
+      <div class="fact"><span class="k">Badges</span><span class="v" id="fBadges">0</span></div>
+      <div class="fact"><span class="k">Status</span><span class="v"><span class="status" id="fStatus">OK</span></span></div>
+    </div>
+  </section>
+
+  <section class="main">
+    <div class="screen">
+      <canvas id="pitch" width="240" height="160" aria-label="Your player's stadium"></canvas>
+      <div class="box textbox" id="say" aria-live="polite"></div>
+    </div>
+
+    <div class="side">
+      <div class="box">
+        <h2>Condition</h2>
+        <div id="stats"></div>
+        <p class="note">Each missed task drains the stat it trains.</p>
+      </div>
+      <div class="box">
+        <h2>Today's training</h2>
+        <p class="sub" id="progress"></p>
+        <ul class="tasks" id="tasks"></ul>
+        <p class="note" id="notToday"></p>
+        <div class="dayedit" id="dayEditor" hidden></div>
+        <div class="row"><button class="btn" id="restBtn" type="button"></button><span class="note" id="restNote"></span></div>
+        <form class="add" id="addForm">
+          <input class="field" id="newTask" placeholder="New daily task" maxlength="60" aria-label="New daily task" required>
+          <select class="field" id="newStat" aria-label="Stat it trains">
+            <option value="energy">Energy</option>
+            <option value="fitness">Fitness</option>
+            <option value="morale">Morale</option>
+          </select>
+          <button class="btn solid" type="submit">Add</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <section class="season" aria-label="Season">
+    <div class="box">
+      <div class="headrow"><h2>League table</h2><span class="note" id="lgInfo"></span></div>
+      <div class="tablewrap"><table class="league" id="league"></table></div>
+      <p class="note" style="margin-top:8px">One match every week, played when the week ends. The more of the week's training you finish, the better your team plays. Top 2 go up, bottom 2 go down.</p>
+    </div>
+    <div class="box">
+      <h2>Next match</h2>
+      <div id="nextMatch"></div>
+      <h2 style="margin-top:16px">Last result</h2>
+      <div id="lastMatch"></div>
+      <div class="row"><button class="btn" id="replay" type="button">Watch again</button></div>
+      <h2 style="margin-top:16px">Past seasons</h2>
+      <ul class="past" id="pastSeasons"></ul>
+    </div>
+  </section>
+
+  <section class="box" aria-labelledby="progTitle">
+    <div class="headrow"><h2 id="progTitle">Progress</h2><span class="note">Your three stats over the last 30 days, and every day you've trained.</span></div>
+    <div class="prog">
+      <figure class="chartbox">
+        <div class="legend" id="legend"></div>
+        <svg id="chart" viewBox="0 0 600 230" role="img" aria-label="Energy, fitness and morale over the last 30 days"></svg>
+        <div class="tip" id="tip" hidden></div>
+      </figure>
+      <div>
+        <h2>Training calendar</h2>
+        <div class="heat" id="heat"></div>
+        <div class="heatkey">Less <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i> More <span style="margin-left:10px"><i class="rest"></i> Rest day</span></div>
+      </div>
+    </div>
+    <details class="tablev"><summary>Show as a table</summary><div class="tablewrap"><table class="league" id="progTable"></table></div></details>
+  </section>
+
+  <section class="box" aria-labelledby="badgeTitle">
+    <div class="headrow"><h2 id="badgeTitle">Badges</h2><span class="note" id="badgeCount"></span></div>
+    <div class="badges" id="badges"></div>
+  </section>
+
+  <section class="box" aria-labelledby="weekTitle">
+    <div class="headrow">
+      <h2 id="weekTitle">This week</h2>
+      <span class="note" id="weekRange"></span>
+      <span class="spacer"></span>
+      <button class="btn" id="wkPrev" type="button" aria-label="Previous week">&#9664;</button>
+      <button class="btn" id="wkNow" type="button">Today</button>
+      <button class="btn" id="wkNext" type="button" aria-label="Next week">&#9654;</button>
+    </div>
+    <div class="week" id="week"></div>
+    <p class="note calempty" id="weekMsg" hidden></p>
+  </section>
+
+  <section class="box" aria-labelledby="readTitle">
+    <div class="headrow"><h2 id="readTitle">Daily reading</h2><span class="note">A new passage of each kind every day.</span></div>
+    <div class="reads" id="reads"></div>
+  </section>
+
+  <section class="box" aria-labelledby="newsTitle">
+    <div class="headrow">
+      <h2 id="newsTitle">Daily news</h2>
+      <span class="note" id="newsWhen"></span>
+      <span class="spacer"></span>
+      <button class="btn" id="newsRefresh" type="button">Refresh</button>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Show news from"></div>
+    <h2>Top headlines</h2>
+    <div class="tops" id="tops"></div>
+    <h2>All stories</h2>
+    <ul class="articles" id="articles"></ul>
+    <p class="note" id="newsMsg"></p>
+  </section>
+
+  <section class="lower">
+    <div class="box">
+      <h2>Google Calendar</h2>
+      <div id="calOff">
+        <p class="note">See your week in Pitch Pal. Workouts and practices become training tasks, and reminders wait until your events finish.</p>
+        <ol class="steps">
+          <li>Open Google Calendar on the web and go to Settings.</li>
+          <li>Under "Settings for my calendars", pick your calendar.</li>
+          <li>In "Integrate calendar", copy the "Secret address in iCal format".</li>
+          <li>Paste it below. It stays on this computer.</li>
+        </ol>
+        <form id="calForm">
+          <input class="field" id="calUrl" type="url" placeholder="https://calendar.google.com/calendar/ical/..." aria-label="Secret address in iCal format" spellcheck="false" autocomplete="off" required>
+          <div class="row"><button class="btn solid" id="calConnect" type="submit">Connect</button><span class="note" id="calMsg"></span></div>
+        </form>
+      </div>
+      <div id="calOn" hidden>
+        <p class="note" id="calStatus"></p>
+        <div class="form" style="margin-top:12px">
+          <label class="wide">Turn events into tasks
+            <select class="field" id="calMode">
+              <option value="active">Workouts and practices</option>
+              <option value="all">Every event</option>
+              <option value="none">None, just show my schedule</option>
+            </select>
+          </label>
+        </div>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="calQuiet"> Hold reminders while an event is on</label>
+        <div class="row"><button class="btn" id="calSync" type="button">Sync now</button><span class="spacer"></span><button class="btn" id="calOff2" type="button">Disconnect</button></div>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>Customize</h2>
+      <form class="form" id="look">
+        <label>Name<input class="field" id="pName" maxlength="12"></label>
+        <label>Number<input class="field" id="pNum" type="number" min="1" max="99"></label>
+        <label class="wide">Club name<input class="field" id="pClub" maxlength="20"></label>
+        <label>Hairstyle<select class="field" id="pStyle"></select></label>
+        <label>Hair colour<input class="field" id="pHair" type="color"></label>
+        <label>Skin tone<select class="field" id="pSkin">
+          <option value="#ffe0c7">Light</option>
+          <option value="#f7d1b5">Fair</option>
+          <option value="#e0ac82">Tan</option>
+          <option value="#c68a5e">Olive</option>
+          <option value="#b57a52">Brown</option>
+          <option value="#7a4b2e">Deep</option>
+        </select></label>
+        <label>Headwear<select class="field" id="pGear"></select></label>
+        <label>Headwear colour<input class="field" id="pGearC" type="color"></label>
+        <label>Shirt colour<input class="field" id="pKit" type="color"></label>
+        <label>Shirt pattern<select class="field" id="pPattern"></select></label>
+        <label>Pattern colour<input class="field" id="pKit2" type="color"></label>
+        <label>Shorts<input class="field" id="pShorts" type="color"></label>
+        <label>Boots<input class="field" id="pBoots" type="color"></label>
+        <label class="wide">Screen palette<select class="field" id="pPal"></select></label>
+        <label class="check wide"><input type="checkbox" id="xGold"> Golden boots <span class="lock" id="lkGold"></span></label>
+        <label class="check wide"><input type="checkbox" id="xBand"> Captain's armband <span class="lock" id="lkBand"></span></label>
+        <label class="check wide"><input type="checkbox" id="pSound"> Sound effects</label>
+      </form>
+    </div>
+
+    <div class="box">
+      <h2>Reminders</h2>
+      <div class="form">
+        <label>Get-active nudge<input class="field" id="pActive" type="time"></label>
+        <label>Evening check-in<input class="field" id="pRemind" type="time"></label>
+      </div>
+      <p class="note" style="margin-top:10px">They pop up in the bottom-left corner of your main screen if tasks are still open. The nudge only comes while a Fitness task is open. Clear a time to turn it off.</p>
+      <label class="check" id="autoRow" hidden style="margin-top:10px"><input type="checkbox" id="autoStart"> Start Pitch Pal when my computer starts</label>
+      <div class="row"><button class="btn" id="preview" type="button" hidden>Preview</button><button class="btn" id="skip" type="button" title="Pretend a day has passed, to see what missed tasks do">Skip a day</button></div>
+      <h2 style="margin-top:22px">Match report</h2>
+      <ul class="log" id="log"></ul>
+      <div class="row"><span class="spacer"></span><button class="btn" id="reset" type="button">New career</button>
+        <span id="confirm" hidden>Wipe everything? <button class="btn solid" id="yes" type="button">Yes</button> <button class="btn" id="no" type="button">Keep</button></span></div>
+    </div>
+    <div class="box">
+      <h2>Backup &amp; updates</h2>
+      <p class="note" id="bkNote">Pitch Pal saves a backup every day and keeps the last two weeks. You can also save one anywhere, like a USB stick or cloud folder.</p>
+      <div class="row"><button class="btn" id="bkExport" type="button">Export backup</button><button class="btn" id="bkImport" type="button">Import backup</button><button class="btn" id="bkFolder" type="button">Open backups folder</button></div>
+      <p class="note" id="bkMsg" style="margin-top:8px"></p>
+      <div class="row" id="bkConfirm" hidden><span id="bkAsk"></span><button class="btn solid" id="bkYes" type="button">Restore</button><button class="btn" id="bkNo" type="button">Cancel</button></div>
+      <h2 style="margin-top:22px">Updates</h2>
+      <p class="note" id="upNote"></p>
+      <div class="row"><button class="btn" id="upCheck" type="button">Check for updates</button></div>
+    </div>
+  </section>
+</div>
+
+<script src="core.js"></script>
+<script src="gb.js"></script>
+<script src="news.js"></script>
+<script src="reading.js"></script>
+<script src="sfx.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const desktop = window.desktop || null;
+  let S = PP.load();
+
+  // fill the customize menus
+  const opts = (el, map) => { el.innerHTML = Object.entries(map).map(([k, v]) => `<option value="${k}">${v}</option>`).join(""); };
+  opts($("pStyle"), GB.HAIRSTYLES); opts($("pGear"), GB.HEADWEAR); opts($("pPattern"), GB.PATTERNS);
+  opts($("pPal"), Object.fromEntries(Object.entries(GB.PALETTES).map(([k, v]) => [k, v.name])));
+
+  const STATUS = { fire: "On fire", steady: "OK", struggling: "Tired", injured: "Hurt" };
+  const club = () => S.club || "Pitch Pal FC";
+  let toastBusy = false, matchShow = null, editing = null;
+  const say = text => { lastSay = text; typeOut(text); };
+  let lastSay = "";
+  function theme() {
+    const sh = GB.PALETTES[S.palette || "color"].shades;
+    sh.forEach((c, i) => document.documentElement.style.setProperty("--c" + i, c));
+    document.body.classList.toggle("mono", GB.isMono(S.palette || "color"));
+  }
+  function hpColor(v) {
+    if (GB.isMono(S.palette || "color")) return "var(--c2)";
+    return v > 50 ? "var(--hp-good)" : v > 20 ? "var(--hp-mid)" : "var(--hp-low)";
+  }
+
+  function render() {
+    S = PP.load(); theme();
+    const div = PP.division(S), m = PP.mood(S);
+    $("fName").textContent = S.name; $("fNum").textContent = S.number; $("fClub").textContent = S.club || "Pitch Pal FC";
+    $("fDiv").textContent = div.name; $("fStreak").textContent = S.streak;
+    $("fFans").textContent = Math.round(PP.attendance(S) * div.cap).toLocaleString();
+    $("fStatus").textContent = STATUS[m.k];
+    $("fRec").textContent = `${S.totals.wins}-${S.totals.draws}-${S.totals.losses}`;
+    $("fBadges").textContent = `${Object.keys(S.badges).length}/${PP.BADGES.length}`;
+    if (!toastBusy && !matchShow && m.q !== lastSay) { lastSay = m.q; typeOut(m.q); }
+
+    $("stats").innerHTML = Object.keys(PP.NAMES).map(k => {
+      const v = S.stats[k];
+      return `<div class="hp"><span class="lbl">${PP.NAMES[k].toUpperCase()}</span><div class="bar" role="meter" aria-valuenow="${v}" aria-valuemin="0" aria-valuemax="100" aria-label="${PP.NAMES[k]}"><i style="width:${v}%;background:${hpColor(v)}"></i></div><span class="num">${v}/100</span></div>`;
+    }).join("");
+
+    renderTasks();
+    $("log").innerHTML = S.log.map(l => `<li><time>${PP.parseKey(l.d).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time><span>${esc(l.t)}</span></li>`).join("");
+
+    renderCalendar(); renderWeek(); renderSeason(); renderProgress(); renderBadges();
+    maybeStartMatch(); nextToast();
+    if (!document.activeElement || !document.activeElement.closest("#look, .form")) fillForms();
+    drawPortrait();
+  }
+
+  // Pokémon-style text box: types the message out a few letters at a time.
+  let typer = 0;
+  function typeOut(text) {
+    clearInterval(typer);
+    const el = $("say");
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = text; return; }
+    let i = 0; el.textContent = "";
+    typer = setInterval(() => { i += 2; el.textContent = text.slice(0, i); if (i >= text.length) clearInterval(typer); }, 30);
+  }
+
+  function fillForms() {
+    const o = GB.look({ ...S, extras: {} }); // the real colours, without unlockable overrides
+    $("pName").value = S.name; $("pNum").value = S.number; $("pClub").value = S.club || "Pitch Pal FC";
+    $("pStyle").value = o.hairStyle; $("pHair").value = o.hair; $("pSkin").value = o.skin;
+    $("pGear").value = o.headwear; $("pGearC").value = o.gear; $("pKit").value = o.kit;
+    $("pPattern").value = o.pattern; $("pKit2").value = o.kit2; $("pShorts").value = o.shorts; $("pBoots").value = o.boots;
+    const lock = (opt, key) => { opt.disabled = !PP.unlocked(S, key); opt.textContent = opt.textContent.replace(/ \(locked\)$/, "") + (opt.disabled ? " (locked)" : ""); };
+    lock($("pGear").querySelector('[value="crown"]'), "crown");
+    lock($("pPal").querySelector('[value="gold"]'), "gold");
+    $("pPal").value = S.palette || "color";
+    const extra = (box, note, key, flag, badge) => {
+      const ok = PP.unlocked(S, key); $(box).disabled = !ok; $(box).checked = ok && !!S.extras[flag];
+      $(note).textContent = ok ? "" : `(earn the ${badge} badge to unlock)`;
+    };
+    extra("xGold", "lkGold", "goldBoots", "goldBoots", "Golden week"); extra("xBand", "lkBand", "armband", "armband", "Captain material");
+    $("pSound").checked = S.sound !== false;
+    const at = PP.remindTimes(S); $("pActive").value = at.active; $("pRemind").value = at.evening;
+  }
+
+  // ---------- today's training ----------
+  const ORDER = () => { const f = PP.weekStart(PP.now(S)).getDay(); return [0, 1, 2, 3, 4, 5, 6].map(i => (f + i) % 7); };
+  function daysLabel(t) {
+    if (!t.days || !t.days.length || t.days.length === 7) return "Daily";
+    const k = [...t.days].sort().join("");
+    if (k === "12345") return "Weekdays"; if (k === "06") return "Weekends";
+    return ORDER().filter(d => t.days.includes(d)).map(d => PP.DAY_NAMES[d].slice(0, 2)).join(" ");
+  }
+  function renderTasks() {
+    const today = PP.todayTasks(S), key = PP.dayKey(PP.now(S)), resting = PP.isRest(S, key);
+    const done = today.filter(t => t.done).length;
+    $("progress").textContent = resting ? "Rest day: nothing counts against you today." : today.length ? `${done} of ${today.length} done. Unfinished tasks count as missed at midnight.` : "Nothing scheduled today. Add a task, or enjoy the day off.";
+    $("tasks").innerHTML = today.map(t => `
+      <li class="task${t.done ? " done" : ""}">
+        <input type="checkbox" id="t-${t.id}" data-id="${t.id}" ${t.done ? "checked" : ""}>
+        <label class="tname" for="t-${t.id}">${esc(t.name)}</label>
+        ${t.cal ? "<span></span>" : `<button class="daysbtn" type="button" data-days="${t.id}" title="Choose which days this task is due" aria-label="Days for ${esc(t.name)}: ${daysLabel(t)}">${daysLabel(t)}</button>`}
+        <span class="tag${t.cal ? " cal" : ""}" title="${t.cal ? "From your calendar" : PP.NAMES[t.stat]}">${t.cal ? "CAL" : PP.NAMES[t.stat].slice(0, 3).toUpperCase()}</span>
+        ${t.cal ? "<span></span>" : `<button class="x" data-del="${t.id}" aria-label="Remove ${esc(t.name)}">x</button>`}
+      </li>`).join("");
+    const later = S.tasks.filter(t => !PP.scheduledOn(t, PP.now(S)));
+    $("notToday").innerHTML = later.length ? "Not due today: " + later.map(t => `<button class="daysbtn" type="button" data-days="${t.id}" title="Choose which days this task is due">${esc(t.name)} &middot; ${daysLabel(t)}</button>`).join(" ") : "";
+    const t = editing && S.tasks.find(x => x.id === editing);
+    $("dayEditor").hidden = !t;
+    if (t) {
+      const on = d => !t.days || !t.days.length || t.days.includes(d);
+      $("dayEditor").innerHTML = `<span class="note">Due on:</span>` + ORDER().map(d => `<button type="button" data-day="${d}" aria-pressed="${on(d)}">${PP.DAY_NAMES[d]}</button>`).join("")
+        + `<button type="button" data-every>Every day</button><button type="button" data-done>Done</button>`;
+    }
+    const canRest = PP.canRest(S);
+    $("restBtn").textContent = resting ? "Cancel rest day" : "Take a rest day";
+    $("restBtn").disabled = !resting && !canRest;
+    $("restNote").textContent = resting ? "No penalties today; your streak is paused." : canRest ? "One per week: no penalties, streak paused." : "You've had this week's rest day.";
+  }
+
+  // ---------- season ----------
+  function weekSoFar() {
+    const start = PP.dayKey(PP.weekStart(PP.now(S))), today = PP.dayKey(PP.now(S));
+    let done = 0, total = 0;
+    for (let k = start; k < today; k = PP.addDays(k, 1)) { const h = S.history[k]; if (h && !h.rest) { done += h.done; total += h.total; } }
+    if (!PP.isRest(S, today)) { const tt = PP.todayTasks(S); done += tt.filter(t => t.done).length; total += tt.length; }
+    return { done, total, pct: total ? Math.round(done / total * 100) : 0 };
+  }
+  const RESULT = (gf, ga) => gf > ga ? "Win" : gf === ga ? "Draw" : "Loss";
+  function renderSeason() {
+    const L = S.league, t = PP.table(S), div = PP.division(S), top = PP.DIVISIONS.length - 1;
+    $("lgInfo").textContent = `Season ${L.season} · ${div.name} · ${L.round} of 7 played`;
+    $("league").innerHTML = `<thead><tr><th>#</th><th>Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>` +
+      t.map((c, i) => {
+        const cls = [c.you ? "you" : "", i < 2 && L.tier < top ? "up" : "", i >= 6 && L.tier > 0 ? "down" : ""].join(" ");
+        const gd = c.gf - c.ga;
+        return `<tr class="${cls}"><td>${i + 1}</td><td>${esc(c.name)}</td><td>${c.p}</td><td>${c.w}</td><td>${c.d}</td><td>${c.l}</td><td>${gd > 0 ? "+" : ""}${gd}</td><td>${c.pts}</td></tr>`;
+      }).join("") + "</tbody>";
+    const nf = PP.nextFixture(S), w = weekSoFar();
+    $("nextMatch").innerHTML = nf ? `<div class="vs">${esc(nf.home ? club() : nf.opp)} v ${esc(nf.home ? nf.opp : club())}</div>
+      <p class="note">${PP.parseKey(nf.day).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}, when the week ends. Match ${nf.round} of 7.</p>
+      <p class="note">This week's training so far: ${w.done} of ${w.total} tasks (${w.pct}%).</p><div class="formbar" role="meter" aria-label="This week's training" aria-valuenow="${w.pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${w.pct}%"></i></div>` : "";
+    const lm = L.last;
+    $("lastMatch").innerHTML = lm ? `<div class="score">${esc(lm.home ? club() : lm.opp)} ${lm.home ? lm.gf : lm.ga}-${lm.home ? lm.ga : lm.gf} ${esc(lm.home ? lm.opp : club())}</div>
+      <p class="note">${RESULT(lm.gf, lm.ga)} · season ${lm.season}, match ${lm.round} · ${Math.round(lm.rate * 100)}% of that week's training done.</p>` : `<p class="note">No matches yet. Your first one is at the end of this week.</p>`;
+    $("replay").hidden = !lm;
+    $("pastSeasons").innerHTML = (L.past || []).slice().reverse().map(p => `<li>Season ${p.season}: ${PP.ordinal(p.pos)} in ${esc(p.division)}, ${p.pts} pts</li>`).join("") || `<li class="note">Your first season is under way.</li>`;
+  }
+
+  // ---------- progress ----------
+  const SERIES = [
+    { k: "e", name: "Energy", color: "#2070c0", dash: "" },
+    { k: "f", name: "Fitness", color: "#2f8f3f", dash: "7 5" },
+    { k: "m", name: "Morale", color: "#c03a8a", dash: "2 4" },
+  ];
+  const X0 = 36, X1 = 520, Y0 = 12, Y1 = 196;
+  let progRows = [];
+  function renderProgress() {
+    const mono = GB.isMono(S.palette || "color"), col = (sr, i) => mono ? (i === 1 ? "var(--c2)" : "var(--c3)") : sr.color;
+    const today = PP.dayKey(PP.now(S)), tt = PP.todayTasks(S);
+    progRows = Array.from({ length: 30 }, (_, i) => {
+      const k = PP.addDays(today, i - 29);
+      if (k === today) return { k, e: S.stats.energy, f: S.stats.fitness, m: S.stats.morale, done: tt.filter(t => t.done).length, total: tt.length, rest: PP.isRest(S, k), live: true };
+      return S.history[k] ? { k, ...S.history[k] } : { k };
+    });
+    const x = i => X0 + i * (X1 - X0) / 29, y = v => Y1 - v / 100 * (Y1 - Y0);
+    let g = "";
+    for (const v of [0, 25, 50, 75, 100]) g += `<line x1="${X0}" x2="${X1}" y1="${y(v)}" y2="${y(v)}" stroke="var(--c1)" stroke-width="1"/><text x="${X0 - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+    const fmt = k => PP.parseKey(k).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    g += `<text x="${X0}" y="${Y1 + 22}" text-anchor="start">${fmt(progRows[0].k)}</text><text x="${x(14)}" y="${Y1 + 22}" text-anchor="middle">${fmt(progRows[14].k)}</text><text x="${X1}" y="${Y1 + 22}" text-anchor="end">Today</text>`;
+    const has = progRows.filter(r => r.e !== undefined).length;
+    const ends = [];
+    SERIES.forEach((sr, si) => {
+      let d = "", pen = false, lastI = -1;
+      progRows.forEach((r, i) => { if (r[sr.k] === undefined) { pen = false; return; } d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(r[sr.k]).toFixed(1)}`; pen = true; lastI = i; });
+      if (d) g += `<path d="${d}" fill="none" stroke="${col(sr, si)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${sr.dash}"/>`;
+      if (lastI >= 0) { g += `<circle cx="${x(lastI)}" cy="${y(progRows[lastI][sr.k])}" r="4" fill="${col(sr, si)}" stroke="var(--c0)" stroke-width="2"/>`; ends.push({ y: y(progRows[lastI][sr.k]), sr }); }
+    });
+    // direct labels at the right, nudged apart so they never overlap
+    ends.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 13);
+    ends.forEach(e => { g += `<text class="dl" x="${X1 + 10}" y="${Math.min(Y1, e.y) + 3}">${e.sr.name.toUpperCase()}</text>`; });
+    if (has < 2) g += `<text x="${(X0 + X1) / 2}" y="${(Y0 + Y1) / 2}" text-anchor="middle">Your chart fills in as the days go by.</text>`;
+    g += `<line id="cross" x1="0" x2="0" y1="${Y0}" y2="${Y1}" stroke="var(--c3)" stroke-width="1" visibility="hidden"/><g id="hoverDots"></g>`;
+    g += `<rect id="hit" x="${X0 - 8}" y="0" width="${X1 - X0 + 16}" height="${Y1 + 8}" fill="transparent"/>`;
+    $("chart").innerHTML = g;
+    $("legend").innerHTML = SERIES.map((sr, i) => `<span><svg viewBox="0 0 22 6" aria-hidden="true"><line x1="1" x2="21" y1="3" y2="3" stroke="${col(sr, i)}" stroke-width="2" stroke-dasharray="${sr.dash}"/></svg>${sr.name}</span>`).join("");
+    // heat map: 16 weeks, one column per week
+    const start = PP.addDays(PP.dayKey(PP.weekStart(PP.now(S))), -15 * 7);
+    let cells = "";
+    for (let i = 0; i < 16 * 7; i++) {
+      const k = PP.addDays(start, i), h = k === today ? { done: tt.filter(t => t.done).length, total: tt.length, rest: PP.isRest(S, k) } : S.history[k];
+      if (k > today) { cells += `<i style="visibility:hidden"></i>`; continue; }
+      let cls = "", label = `${fmt(k)}: no record`;
+      if (h) {
+        const r = h.total ? h.done / h.total : 1;
+        cls = h.rest ? "rest" : !h.total ? "l0" : r >= 1 ? "l3" : r >= 0.5 ? "l2" : r > 0 ? "l1" : "l0";
+        label = h.rest ? `${fmt(k)}: rest day` : `${fmt(k)}: ${h.done} of ${h.total} tasks`;
+      }
+      cells += `<i class="${cls}${k === today ? " today" : ""}" title="${label}" aria-label="${label}"></i>`;
+    }
+    $("heat").innerHTML = cells;
+    $("progTable").innerHTML = `<thead><tr><th>Date</th><th>Done</th><th>Energy</th><th>Fitness</th><th>Morale</th></tr></thead><tbody>` +
+      progRows.slice().reverse().filter(r => r.e !== undefined).map(r => `<tr><td>${fmt(r.k)}${r.live ? " (so far)" : ""}</td><td>${r.rest ? "Rest" : `${r.done}/${r.total}`}</td><td>${r.e}</td><td>${r.f}</td><td>${r.m}</td></tr>`).join("") + "</tbody>";
+  }
+  // crosshair + tooltip
+  $("chart").addEventListener("mousemove", e => {
+    if (e.target.id !== "hit") return;
+    const box = $("chart").getBoundingClientRect(), sx = 600 / box.width;
+    const i = Math.max(0, Math.min(29, Math.round(((e.clientX - box.left) * sx - X0) / ((X1 - X0) / 29))));
+    const r = progRows[i]; if (!r || r.e === undefined) { $("tip").hidden = true; $("cross").setAttribute("visibility", "hidden"); $("hoverDots").innerHTML = ""; return; }
+    const x = X0 + i * (X1 - X0) / 29, y = v => Y1 - v / 100 * (Y1 - Y0), mono = GB.isMono(S.palette || "color");
+    $("cross").setAttribute("x1", x); $("cross").setAttribute("x2", x); $("cross").setAttribute("visibility", "visible");
+    $("hoverDots").innerHTML = SERIES.map((sr, si) => `<circle cx="${x}" cy="${y(r[sr.k])}" r="4" fill="${mono ? (si === 1 ? "var(--c2)" : "var(--c3)") : sr.color}" stroke="var(--c0)" stroke-width="2"/>`).join("");
+    const tip = $("tip"), fig = tip.parentElement.getBoundingClientRect();
+    tip.innerHTML = `<b>${PP.parseKey(r.k).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</b>Energy ${r.e}<br>Fitness ${r.f}<br>Morale ${r.m}<br>${r.rest ? "Rest day" : `${r.done}/${r.total} tasks`}`;
+    tip.hidden = false;
+    const left = e.clientX - fig.left + 14;
+    tip.style.left = (left + tip.offsetWidth > fig.width ? left - tip.offsetWidth - 28 : left) + "px";
+    tip.style.top = Math.max(0, e.clientY - fig.top - 40) + "px";
+  });
+  $("chart").addEventListener("mouseleave", () => { $("tip").hidden = true; const c = $("cross"); if (c) c.setAttribute("visibility", "hidden"); const h = $("hoverDots"); if (h) h.innerHTML = ""; });
+
+  // ---------- badges ----------
+  function renderBadges() {
+    const pal = S.palette || "color", n = Object.keys(S.badges).length;
+    $("badgeCount").textContent = `${n} of ${PP.BADGES.length} earned`;
+    $("badges").innerHTML = PP.BADGES.map(b => {
+      const got = S.badges[b.id];
+      return `<div class="badge${got ? "" : " locked"}"><canvas width="11" height="11" data-icon="${b.icon}" data-got="${got ? 1 : 0}" aria-hidden="true"></canvas>
+        <div><b>${esc(b.name)}</b><span>${got ? `Earned ${PP.parseKey(got).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : esc(b.how)}</span>${b.unlock ? `<em>${got ? "Unlocked" : "Unlocks"}: ${esc(b.unlock)}</em>` : ""}</div></div>`;
+    }).join("");
+    $("badges").querySelectorAll("canvas").forEach(c => c.getContext("2d").drawImage(GB.badgeIcon(c.dataset.icon, pal, c.dataset.got !== "1"), 0, 0));
+  }
+  // New badges are announced one at a time in the text box.
+  function nextToast() {
+    if (toastBusy || matchShow) return;
+    let item = null;
+    if (!PP.load().toasts.length) return;
+    PP.update(x => { item = x.toasts.shift(); });
+    const b = item && PP.BADGES.find(b => b.id === item.id); if (!b) return nextToast();
+    toastBusy = true; SFX.play("badge", S);
+    say(`Badge earned: ${b.name}${b.unlock ? ` Unlocked: ${b.unlock}!` : ""}`);
+    setTimeout(() => { toastBusy = false; lastSay = ""; render(); }, 4500);
+  }
+
+  // ---------- Match Day on the stadium screen ----------
+  const kitFor = name => { const h = [...name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7); return ["#1e6fd9", "#2a9d8f", "#f4a261", "#6a4c93", "#264653", "#e9c46a", "#8d99ae", "#d62828"][Math.abs(h) % 8]; };
+  const abbr = n => n.replace(/[^A-Za-z ]/g, "").split(" ")[0].slice(0, 3).toUpperCase();
+  function makeNpcs(oppKit) {
+    const hair = ["#1f1a1c", "#3b2618", "#f2c45a", "#c4502a"], skin = ["#ffe0c7", "#e0ac82", "#b57a52", "#7a4b2e"], styles = ["short", "buzz", "curly", "spiky", "ponytail"];
+    return [0, 1, 2, 3, 4].map(i => {
+      const mine = i < 2, o = GB.look({ ...(mine ? S : {}), kit: mine ? S.kit : oppKit, kit2: mine ? S.kit2 : "#ffffff", pattern: mine ? S.pattern : "plain", hair: hair[i % 4], skin: skin[(i * 3) % 4], hairStyle: styles[i], headwear: "none", number: 2 + i * 3, extras: {} });
+      return { o, x: 48 + i * 36, y: 88 + (i % 3) * 22, tx: 48 + i * 36, ty: 88, dir: "down", wait: Math.random(), step: 0 };
+    });
+  }
+  function startMatch(data, replay) {
+    if (!data || matchShow) return;
+    matchShow = { data, t0: performance.now(), next: 0, ended: 0, replay, npcs: makeNpcs(kitFor(data.opp)), cheerTill: 0 };
+    SFX.play("whistle", S);
+    say(`Match day! ${data.home ? club() : data.opp} v ${data.home ? data.opp : club()}. Kick-off!`);
+  }
+  function maybeStartMatch() {
+    const lm = S.league.last;
+    if (lm && !lm.seen && !matchShow && document.visibilityState === "visible") setTimeout(() => startMatch(PP.load().league.last), 1200);
+  }
+  function finishMatch() {
+    const was = matchShow; matchShow = null;
+    PP.update(s => { if (s.league.last) s.league.last.seen = true; });
+    S = PP.load();
+    const se = S.league.seasonEnd;
+    if (se && !se.seen && !was.replay) {
+      PP.update(s => { s.league.seasonEnd.seen = true; });
+      SFX.play(se.promoted || se.champion ? "promotion" : se.relegated ? "lose" : "badge", S);
+      toastBusy = true;
+      say(`Season ${se.season} over: ${PP.ordinal(se.pos)} in ${se.division}.` + (se.champion ? " Champions!" : "") + (se.promoted ? ` Promoted to ${se.to}!` : se.relegated ? ` Relegated to ${se.to}.` : ""));
+      setTimeout(() => { toastBusy = false; lastSay = ""; render(); }, 6000);
+    } else { lastSay = ""; render(); }
+  }
+  function matchTick(t, dt) {
+    const M = matchShow, d = M.data, e = (performance.now() - M.t0) / 1000, minute = Math.min(90, Math.floor(e * 7));
+    while (M.next < d.goals.length && d.goals[M.next].min <= minute) {
+      const g = d.goals[M.next++];
+      if (g.us) { SFX.play("goal", S); M.cheerTill = performance.now() + 3000; say(`${g.min}' GOAL! ${g.scorer === S.name ? S.name : "A teammate"} scores for ${club()}!`); }
+      else { SFX.play("concede", S); say(`${g.min}' ${d.opp} score.`); }
+    }
+    if (minute >= 90 && !M.ended) {
+      M.ended = e; SFX.play("whistle", S);
+      setTimeout(() => SFX.play(d.gf > d.ga ? "win" : d.gf < d.ga ? "lose" : "badge", S), 700);
+      say(`Full time: ${club()} ${d.gf}-${d.ga} ${d.opp}. ${d.gf > d.ga ? "A win!" : d.gf === d.ga ? "A draw." : "A loss. More training this week!"}`);
+      if (d.gf > d.ga) M.cheerTill = performance.now() + 5000;
+    }
+    if (M.ended && e - M.ended > 5) { finishMatch(); return null; }
+    const us = d.goals.filter(g => g.us && g.min <= minute).length, them = d.goals.filter(g => !g.us && g.min <= minute).length;
+    return { minute, us, them, cheer: performance.now() < M.cheerTill };
+  }
+  $("replay").addEventListener("click", () => { $("pitch").scrollIntoView({ behavior: "smooth", block: "center" }); startMatch(S.league.last, true); });
+
+  // ---------- backup & updates ----------
+  if (!desktop) {
+    ["bkExport", "bkImport", "bkFolder", "upCheck"].forEach(id => $(id).disabled = true);
+    $("bkMsg").textContent = "Backups and updates work in the desktop app.";
+  } else {
+    desktop.listBackups().then(l => { if (l.length) $("bkMsg").textContent = `Latest automatic backup: ${l[0].replace(/^pitchpal-|\.json$/g, "")}.`; });
+    desktop.checkForUpdates().then(u => {
+      $("upNote").textContent = u.configured ? `You have version ${u.version}. Pitch Pal checks for new versions automatically.` : `You have version ${u.version}. New versions come as an installer you run over this one.`;
+    });
+  }
+  $("bkExport").addEventListener("click", async () => {
+    const path = await desktop.exportBackup(PP.exportData());
+    if (path) $("bkMsg").textContent = `Saved to ${path}`;
+  });
+  let pendingImport = null;
+  $("bkImport").addEventListener("click", async () => {
+    const text = await desktop.importBackup(); if (!text) return;
+    try {
+      const d = JSON.parse(text); if (!d.state || !d.state.stats) throw 0;
+      pendingImport = text;
+      $("bkAsk").textContent = `Replace everything with the backup from ${new Date(d.savedAt).toLocaleString()}? `;
+      $("bkConfirm").hidden = false;
+    } catch (e) { $("bkMsg").textContent = "That file isn't a Pitch Pal backup."; }
+  });
+  $("bkYes").addEventListener("click", () => {
+    try { PP.importData(pendingImport); $("bkMsg").textContent = "Backup restored."; } catch (e) { $("bkMsg").textContent = e.message; }
+    pendingImport = null; $("bkConfirm").hidden = true; bgKey = ""; render();
+  });
+  $("bkNo").addEventListener("click", () => { pendingImport = null; $("bkConfirm").hidden = true; });
+  $("bkFolder").addEventListener("click", () => desktop.openBackupFolder());
+  $("upCheck").addEventListener("click", async () => {
+    $("upCheck").disabled = true;
+    const u = await desktop.checkForUpdates();
+    $("upCheck").disabled = false;
+    $("upNote").textContent = !u.configured ? `You have version ${u.version}. Automatic updates aren't set up for this copy yet, so new versions come as an installer.`
+      : u.status === "ready" ? `Version ${u.version} is ready. Restart Pitch Pal from the tray menu to finish updating.`
+      : u.status === "downloading" ? `Downloading version ${u.version}...` : u.status === "error" ? `Couldn't check for updates: ${u.message}` : `You have the latest version (${u.version}).`;
+  });
+
+  // ---------- calendar panel ----------
+  function ago(ms) {
+    const m = Math.round((Date.now() - ms) / 60000);
+    return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+  }
+  function renderCalendar() {
+    const cal = S.cal, on = !!(cal && cal.url);
+    $("calOff").hidden = on; $("calOn").hidden = !on;
+    if (!desktop) {
+      $("calConnect").disabled = true; $("calUrl").disabled = true;
+      $("calMsg").textContent = "Connect your calendar in the desktop app.";
+    }
+    if (!on) return;
+    $("calStatus").innerHTML = cal.error ? `<span class="err">${esc(cal.error)}</span>` : cal.lastSync ? `Connected. Synced ${ago(cal.lastSync)}.` : "Connected. Syncing...";
+    if (document.activeElement !== $("calMode")) $("calMode").value = cal.mode || "active";
+    $("calQuiet").checked = cal.quiet !== false;
+  }
+  $("calForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const url = $("calUrl").value.trim(); if (!url) return;
+    $("calConnect").disabled = true; $("calMsg").textContent = "Connecting...";
+    PP.update(s => { s.cal = { url, mode: "active", quiet: true, events: [], lastSync: 0, error: "" }; });
+    const r = await PP.syncCalendar();
+    $("calConnect").disabled = false;
+    if (!r.ok) { PP.update(s => { delete s.cal; }); $("calMsg").innerHTML = `<span class="err">${esc(r.error || "Couldn't connect.")}</span>`; render(); return; }
+    $("calUrl").value = ""; $("calMsg").textContent = ""; render();
+  });
+  $("calSync").addEventListener("click", async () => { $("calSync").disabled = true; await PP.syncCalendar(); $("calSync").disabled = false; render(); });
+  $("calOff2").addEventListener("click", () => { PP.update(s => { s.tasks = s.tasks.filter(t => !t.cal || t.done); delete s.cal; }); render(); });
+  $("calMode").addEventListener("change", () => { PP.update(s => { s.cal.mode = $("calMode").value; PP.mergeCalendarTasks(s); }); render(); });
+  $("calQuiet").addEventListener("change", () => { PP.update(s => { s.cal.quiet = $("calQuiet").checked; }); render(); });
+
+  // ---------- week view ----------
+  let weekShift = 0, weekData = null, weekBusy = false;
+  async function loadWeek() {
+    if (weekShift === 0 || !desktop || !S.cal || !S.cal.url) { weekData = null; renderWeek(); return; }
+    weekBusy = true; renderWeek();
+    try { weekData = await PP.weekEvents(weekShift); weekData.error = ""; }
+    catch (e) { weekData = { start: PP.weekStart(PP.now(S), weekShift).toISOString(), events: [], error: PP.cleanError(e) }; }
+    weekBusy = false; renderWeek();
+  }
+  function renderWeek() {
+    const cal = S.cal, on = !!(cal && cal.url);
+    const start = PP.weekStart(PP.now(S), weekShift);
+    const data = weekShift === 0 ? (cal && cal.week) : weekData;
+    const events = data && new Date(data.start).getTime() === start.getTime() ? data.events : [];
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+    const fmt = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    $("weekRange").textContent = `${fmt(start)} \u2013 ${fmt(end)}${weekBusy ? " \u00b7 loading..." : ""}`;
+    ["wkPrev", "wkNow", "wkNext"].forEach(id => $(id).disabled = !on);
+    const msg = !on ? "Connect your Google Calendar below to see your week here." : (data && data.error) || (cal.error && weekShift === 0 ? cal.error : "");
+    $("weekMsg").hidden = !msg; $("weekMsg").textContent = msg;
+    const today = PP.dayKey(PP.now(S)), nowMs = Date.now();
+    $("week").innerHTML = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      const list = events.filter(e => new Date(e.end) > d && new Date(e.start) < next)
+        .sort((a, b) => (b.allDay - a.allDay) || a.start.localeCompare(b.start));
+      const items = list.map(e => {
+        const cls = ["ev", e.allDay ? "all" : "", PP.statFor(e.title) === "fitness" ? "fit" : "", new Date(e.end) < nowMs ? "past" : ""].join(" ");
+        const when = e.allDay ? "All day" : `${PP.fmtTime(e.start)}\u2013${PP.fmtTime(e.end)}`;
+        return `<li class="${cls}"><time>${when}</time><span>${esc(e.title)}</span></li>`;
+      }).join("");
+      const label = d.toLocaleDateString(undefined, { weekday: "short" }) + " " + d.getDate();
+      return `<div class="day${PP.dayKey(d) === today ? " today" : ""}"><h3>${label}</h3>${items ? `<ul>${items}</ul>` : `<p class="none">${on ? "Free" : ""}</p>`}</div>`;
+    }).join("");
+  }
+  $("wkPrev").addEventListener("click", () => { weekShift--; loadWeek(); });
+  $("wkNext").addEventListener("click", () => { weekShift++; loadWeek(); });
+  $("wkNow").addEventListener("click", () => { weekShift = 0; loadWeek(); if (desktop) PP.syncCalendar().then(render); });
+
+  // ---------- daily reading ----------
+  const readPos = {};
+  function renderReading() {
+    $("reads").innerHTML = Reading.KINDS.map(([k, label]) => {
+      const list = Reading.byKind(k);
+      if (readPos[k] === undefined) readPos[k] = Reading.todayIndex(k, PP.now(S));
+      const i = readPos[k], r = list[i];
+      return `<article class="read"><span class="kind">${label}</span><blockquote>${esc(r.text)}</blockquote>
+        <cite><b>${esc(r.author)}</b>, ${esc(r.work)}</cite>
+        <div class="row"><button class="btn" data-read="${k}" data-step="-1" type="button" aria-label="Previous ${label.toLowerCase()} passage">&#9664;</button>
+        <span class="count">${i + 1}/${list.length}</span>
+        <button class="btn" data-read="${k}" data-step="1" type="button" aria-label="Next ${label.toLowerCase()} passage">&#9654;</button></div></article>`;
+    }).join("");
+  }
+  $("reads").addEventListener("click", e => {
+    const b = e.target.closest("[data-read]"); if (!b) return;
+    const k = b.dataset.read, n = Reading.byKind(k).length;
+    readPos[k] = (readPos[k] + +b.dataset.step + n) % n; renderReading();
+    PP.update(s => { s.readCount = (s.readCount || 0) + 1; }); nextToast();
+  });
+
+  // ---------- daily news ----------
+  let newsData = News.load(), newsFilter = "all", newsBusy = false;
+  const srcName = id => (News.SOURCES.find(x => x.id === id) || {}).name || id;
+  function ago(iso) {
+    if (!iso) return "";
+    const m = Math.round((Date.now() - new Date(iso)) / 60000);
+    return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+  }
+  // Stories without a photo show their source's name instead.
+  const thumb = (url, src) => `<span class="thumb"><span class="ph">${esc((News.SOURCES.find(x => x.id === src) || {}).short || "")}</span>${url ? `<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ""}</span>`;
+  function renderNews() {
+    $("chips").innerHTML = [["all", "All"], ...News.SOURCES.map(x => [x.id, x.name])]
+      .map(([id, name]) => `<button class="btn" type="button" data-src="${id}" aria-pressed="${newsFilter === id}">${esc(name)}</button>`).join("");
+    const items = (newsData && newsData.items) || [];
+    const shown = newsFilter === "all" ? items : items.filter(a => a.src === newsFilter);
+    // Top headlines: each source's newest story, or the newest four from one source.
+    const tops = newsFilter === "all" ? News.SOURCES.map(x => items.find(a => a.src === x.id)).filter(Boolean) : shown.slice(0, 4);
+    $("tops").innerHTML = tops.map(a => `<a class="top" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">${thumb(a.img, a.src)}
+      <div class="t"><span class="src">${esc(srcName(a.src))} \u00b7 ${ago(a.date)}</span><b>${esc(a.title)}</b></div></a>`).join("");
+    $("articles").innerHTML = shown.map(a => `<li><a class="art" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">${thumb(a.img, a.src)}
+      <div><span class="src">${esc(srcName(a.src))} \u00b7 ${ago(a.date)}</span><b>${esc(a.title)}</b>${a.summary ? `<p>${esc(a.summary)}</p>` : ""}</div></a></li>`).join("");
+    const errs = Object.entries((newsData && newsData.errors) || {}).map(([id, m]) => `${srcName(id)}: ${String(m).replace(/\.$/, "")}`);
+    $("newsWhen").textContent = newsBusy ? "Loading..." : newsData && newsData.fetchedAt ? `Updated ${ago(new Date(newsData.fetchedAt).toISOString())}` : "";
+    $("newsRefresh").disabled = !desktop || newsBusy;
+    $("newsMsg").textContent = !desktop ? "News loads in the desktop app."
+      : newsBusy ? ""
+      : !items.length && errs.length ? `Couldn't load the news (${errs.join("; ")}). Check your internet connection, then press Refresh.`
+      : !items.length ? "No stories yet. Press Refresh."
+      : errs.length ? `Couldn't update ${errs.join("; ")}. Showing the last stories we had.` : "";
+  }
+  $("chips").addEventListener("click", e => { const b = e.target.closest("[data-src]"); if (!b) return; newsFilter = b.dataset.src; renderNews(); });
+  async function refreshNews(force) {
+    if (!desktop) { renderNews(); return; }
+    newsBusy = true; renderNews();
+    try { newsData = await News.refresh(force); } catch (e) {}
+    newsBusy = false; renderNews();
+  }
+  $("newsRefresh").addEventListener("click", () => refreshNews(true));
+  addEventListener("storage", e => { if (e.key === "pitchpal.news") { newsData = News.load(); renderNews(); } });
+  setInterval(() => refreshNews(false), 30 * 60000);
+
+  // ---------- start with the computer ----------
+  if (desktop && desktop.getAutoStart) desktop.getAutoStart().then(a => {
+    if (!a.supported) return;
+    $("autoRow").hidden = false; $("autoStart").checked = a.on;
+    $("autoStart").addEventListener("change", () => desktop.setAutoStart($("autoStart").checked));
+  });
+
+  // ---------- tasks, customize, reminders ----------
+  $("tasks").addEventListener("change", e => {
+    PP.toggleTask(e.target.dataset.id, e.target.checked); render();
+    const all = PP.todayTasks(S).length && PP.todayTasks(S).every(t => t.done);
+    SFX.play(!e.target.checked ? "untick" : all ? "allDone" : "tick", S);
+  });
+  const openDays = e => { const b = e.target.closest("[data-days]"); if (!b) return false; editing = editing === b.dataset.days ? null : b.dataset.days; renderTasks(); return true; };
+  $("notToday").addEventListener("click", openDays);
+  $("dayEditor").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b || !editing) return;
+    if (b.dataset.done !== undefined) { editing = null; renderTasks(); return; }
+    PP.update(s => {
+      const t = s.tasks.find(x => x.id === editing); if (!t) return;
+      if (b.dataset.every !== undefined) { delete t.days; return; }
+      const d = +b.dataset.day, cur = new Set(t.days && t.days.length ? t.days : [0, 1, 2, 3, 4, 5, 6]);
+      cur.has(d) ? cur.delete(d) : cur.add(d);
+      t.days = cur.size === 7 || cur.size === 0 ? undefined : [...cur].sort();
+    });
+    render();
+  });
+  $("restBtn").addEventListener("click", () => {
+    const on = PP.isRest(S, PP.dayKey(PP.now(S)));
+    PP.setRest(!on); render();
+  });
+  $("tasks").addEventListener("click", e => {
+    if (openDays(e)) return;
+    const id = e.target.dataset.del; if (!id) return;
+    PP.update(s => s.tasks = s.tasks.filter(t => t.id !== id)); render();
+  });
+  $("addForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = $("newTask").value.trim(); if (!name) return;
+    PP.update(s => s.tasks.push({ id: PP.uid(), name, stat: $("newStat").value, done: false }));
+    $("newTask").value = ""; render();
+  });
+  $("look").addEventListener("input", () => {
+    PP.update(s => {
+      s.name = $("pName").value.trim() || "Rico";
+      s.number = Math.max(1, Math.min(99, parseInt($("pNum").value) || 10));
+      s.club = $("pClub").value.trim() || "Pitch Pal FC";
+      s.hairStyle = $("pStyle").value; s.hair = $("pHair").value; s.skin = $("pSkin").value;
+      s.headwear = $("pGear").value; s.gear = $("pGearC").value; s.kit = $("pKit").value;
+      s.pattern = $("pPattern").value; s.kit2 = $("pKit2").value; s.shorts = $("pShorts").value; s.boots = $("pBoots").value;
+      s.palette = $("pPal").value;
+      if (s.headwear === "crown" && !PP.unlocked(s, "crown")) s.headwear = "none";
+      if (s.palette === "gold" && !PP.unlocked(s, "gold")) s.palette = "color";
+      s.extras.goldBoots = $("xGold").checked && PP.unlocked(s, "goldBoots");
+      s.extras.armband = $("xBand").checked && PP.unlocked(s, "armband");
+      s.sound = $("pSound").checked;
+    });
+    bgKey = ""; render();
+  });
+  for (const id of ["pActive", "pRemind"]) $(id).addEventListener("input", () => {
+    PP.update(s => {
+      // A changed time may fire again today.
+      const at = PP.remindTimes(s), sent = s.sent || (s.sent = {});
+      if ($("pActive").value !== at.active) { s.activeAt = $("pActive").value; delete sent.active; }
+      if ($("pRemind").value !== at.evening) { s.remindAt = $("pRemind").value; delete sent.evening; s.snoozeUntil = 0; }
+    });
+  });
+  if (desktop) {
+    $("preview").hidden = false; $("preview").addEventListener("click", () => desktop.showReminder());
+    $("skip").hidden = true;
+  }
+  $("skip").addEventListener("click", () => { PP.update(s => s.offset = (s.offset || 0) + 1); PP.rollover(); render(); });
+  $("reset").addEventListener("click", () => { $("reset").hidden = true; $("confirm").hidden = false; });
+  $("no").addEventListener("click", () => { $("reset").hidden = false; $("confirm").hidden = true; });
+  $("yes").addEventListener("click", () => { PP.save(PP.fresh()); render(); $("no").click(); });
+
+  // The desktop player writes to the same save; pick up its changes.
+  addEventListener("storage", e => { if (e.key === PP.KEY) render(); });
+  addEventListener("focus", render);
+  setInterval(() => { PP.rollover(); render(); }, 60000);
+
+  // ---------- portrait ----------
+  const pctx = $("portrait").getContext("2d");
+  function drawPortrait(t = 0) {
+    const m = PP.mood(S).k, o = GB.look(S), f = Math.floor(t * 4);
+    const face = { fire: "happy", steady: (t % 4.2) < 0.15 ? "blink" : "normal", struggling: "tired", injured: "hurt" }[m];
+    const p = { ...o, face, sit: m === "injured", armL: m === "struggling" ? "low" : "down", armR: m === "fire" && f % 2 ? "wave" : m === "struggling" ? "low" : "down", tear: f % 4 };
+    pctx.clearRect(0, 0, 44, 62);
+    pctx.drawImage(GB.portrait(p, S.palette || "color"), 0, 0);
+  }
+
+  // ---------- stadium: 240x160, drawn in the screen palette ----------
+  const W = 240, H = 160, INK = GB.INK;
+  const view = $("pitch"), vctx = view.getContext("2d");
+  const buf = GB.canvas(W, H), ctx = buf.getContext("2d");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const hash = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+  function fitView() {
+    const r = view.getBoundingClientRect(), k = Math.max(1, Math.round(r.width * (devicePixelRatio || 1) / W));
+    if (view.width !== W * k) { view.width = W * k; view.height = H * k; }
+  }
+  new ResizeObserver(fitView).observe(view);
+
+  // Region palettes for the Color screen; mono screens use the 4 shades everywhere.
+  const REGION = {
+    grass: ["#f8fff0", "#98d868", "#68b048", "#284828"],
+    grass2: ["#f8fff0", "#88c858", "#58a040", "#284828"],
+    dry: ["#fff8e0", "#d8c080", "#a88848", "#483818"],
+    track: ["#fff0e8", "#e09070", "#b86048", "#401810"],
+    stand: ["#f0f0ff", "#a8b0e0", "#6870b0", "#202040"],
+    roof: ["#f0f0f0", "#b0b0c0", "#606078", "#181820"],
+    wall: ["#f8f8f0", "#f8d048", "#d84040", "#181818"],
+  };
+  const PITCH = { x0: 20, y0: 68, x1: 219, y1: 155 };
+  let bgKey = "", bg = null;
+  function background(pal, tier, dry) {
+    const key = pal + tier + dry;
+    if (key === bgKey && bg) return bg;
+    bgKey = key; bg = GB.canvas(W, H);
+    const g = bg.getContext("2d");
+    const P = r => GB.isMono(pal) ? GB.PALETTES[pal].shades : REGION[r];
+    const img = g.createImageData(W, H), a = img.data;
+    const put = (x, y, col) => { const [r, gg, b] = GB.hex(col), i = (y * W + x) * 4; a[i] = r; a[i + 1] = gg; a[i + 2] = b; a[i + 3] = 255; };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const lx = x & 15, ly = y & 15;
+      let reg, k;
+      if (y < 8) { reg = "roof"; k = y === 0 ? 2 : (x + y) % 6 === 0 ? 2 : 3; }
+      else if (y < 56) { reg = "stand"; const r = (y - 8) & 7; k = r === 7 ? 3 : r === 4 ? 0 : r >= 5 ? 1 : 2; if (r >= 4 && r <= 6 && x % 10 === 9) k = 2; }
+      else if (y < 64) { reg = "wall"; k = 3; }
+      else if (x < 16 || x >= 224) { reg = "track"; k = (lx === 0 || lx === 8) && ly % 4 !== 3 ? 0 : hash(x * 7 + y * 13) < 0.08 ? 2 : 1; }
+      else {
+        reg = dry ? "dry" : ((x >> 4) % 2 ? "grass2" : "grass"); k = 1;
+        const tuft = (lx === 3 && ly === 5) || (lx === 4 && ly === 4) || (lx === 5 && ly === 5) || (lx === 11 && ly === 12) || (lx === 12 && ly === 11) || (lx === 13 && ly === 12);
+        if (tuft) k = 2;
+        if (!dry && reg === "grass2" && ((lx === 8 && ly === 1) || (lx === 1 && ly === 9))) k = 2;
+        if (dry) {
+          // bare patches and cracks, tile by tile
+          const tile = hash((x >> 4) * 31 + (y >> 4) * 7);
+          if (tile < dry * 0.6) { k = 1; if ((lx * 7 + ly * 3) % 11 === 0) k = 2; }
+          const crack = (lx === 6 && ly > 3 && ly < 9) || (ly === 8 && lx > 6 && lx < 11) || (lx === 10 && ly > 8 && ly < 12);
+          if (crack && tile < dry * 0.8) k = 3;
+          else if (crack && tile < dry) k = 2;
+          if (tile >= dry * 0.6) reg = "grass";
+        }
+      }
+      put(x, y, P(reg)[k]);
+    }
+    g.putImageData(img, 0, 0);
+    // pitch markings
+    const line = P(dry ? "dry" : "grass")[0];
+    g.fillStyle = line;
+    g.fillRect(PITCH.x0, PITCH.y0, PITCH.x1 - PITCH.x0 + 1, 1); g.fillRect(PITCH.x0, PITCH.y1, PITCH.x1 - PITCH.x0 + 1, 1);
+    g.fillRect(PITCH.x0, PITCH.y0, 1, PITCH.y1 - PITCH.y0); g.fillRect(PITCH.x1, PITCH.y0, 1, PITCH.y1 - PITCH.y0);
+    g.fillRect(120, PITCH.y0, 1, PITCH.y1 - PITCH.y0);
+    const cy = (PITCH.y0 + PITCH.y1) >> 1, seen = new Set();
+    for (let i = 0; i < 360; i++) {
+      const px = Math.round(120 + Math.cos(i / 57.3) * 22), py = Math.round(cy + Math.sin(i / 57.3) * 22);
+      if (!seen.has(px * 1000 + py)) { seen.add(px * 1000 + py); g.fillRect(px, py, 1, 1); }
+    }
+    g.fillRect(119, cy - 1, 3, 3);
+    // corner flags
+    for (const [fx, fy] of [[PITCH.x0, PITCH.y0], [PITCH.x1, PITCH.y0], [PITCH.x0, PITCH.y1], [PITCH.x1, PITCH.y1]]) g.drawImage(GB.flag(pal, "#f8d048"), fx - 2, fy - 9);
+    return bg;
+  }
+
+  // Board text, crisp: rendered once and thresholded.
+  let adKey = "", adStrip = null;
+  function adBoard(text, col) {
+    if (text + col === adKey && adStrip) return adStrip;
+    adKey = text + col;
+    const font = '8px "PS2P Local", "Press Start 2P", monospace';
+    const m = GB.canvas(1, 1).getContext("2d"); m.font = font;
+    const w = Math.ceil(m.measureText(text).width) || 1;
+    adStrip = GB.canvas(w, 8);
+    const g = adStrip.getContext("2d"); g.font = font; g.textBaseline = "top"; g.fillStyle = col; g.fillText(text, 0, 0);
+    const d = g.getImageData(0, 0, w, 8);
+    for (let i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] > 110 ? 255 : 0;
+    g.putImageData(d, 0, 0);
+    return adStrip;
+  }
+  document.fonts && document.fonts.ready.then(() => { adKey = ""; textCache.clear(); });
+  // Small crisp text for the big screen.
+  const textCache = new Map();
+  function pixText(text, col) {
+    const key = text + col; if (textCache.has(key)) return textCache.get(key);
+    const font = '8px "PS2P Local", "Press Start 2P", monospace', m = GB.canvas(1, 1).getContext("2d"); m.font = font;
+    const c = GB.canvas(Math.ceil(m.measureText(text).width) || 1, 8), g = c.getContext("2d");
+    g.font = font; g.textBaseline = "top"; g.fillStyle = col; g.fillText(text, 0, 0);
+    const d = g.getImageData(0, 0, c.width, 8); for (let i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] > 110 ? 255 : 0; g.putImageData(d, 0, 0);
+    if (textCache.size > 50) textCache.clear(); textCache.set(key, c); return c;
+  }
+
+  // first-aid kit for the injured scene
+  const medkit = (() => { const L = GB.painter(10, 9); L.r(1, 2, 8, 6, "#ffffff"); L.r(3, 1, 4, 1, "#c0c0c8"); L.r(4, 3, 2, 4, "#e03838"); L.r(3, 4, 4, 2, "#e03838"); return GB.outline(L.c, INK); })();
+
+  // The player wanders the pitch in grid-aligned steps, like a handheld overworld.
+  const P = { x: 104, y: 120, dir: "down", tx: 104, ty: 120, wait: 1, step: 0 };
+  function pickTarget() {
+    P.tx = 36 + Math.floor(Math.random() * 11) * 16; P.ty = 84 + Math.floor(Math.random() * 5) * 16;
+  }
+  const SPEED = { fire: 42, steady: 24, struggling: 10 };
+  let last = 0;
+  function frame(ms) {
+    const t = reduce ? 0 : ms / 1000, dt = Math.min(0.1, (ms - last) / 1000 || 0); last = ms;
+    const pal = S.palette || "color", div = PP.division(S), att = PP.attendance(S), m = PP.mood(S).k;
+    const cheer = S.cheerUntil > Date.now() || !!(matchShow && performance.now() < matchShow.cheerTill), happy = m === "fire" || cheer || !!matchShow, f8 = Math.floor(t * 8);
+    ctx.drawImage(background(pal, div.tier, m === "injured" ? 0.9 : m === "struggling" ? 0.4 : 0), 0, 0);
+    const mono = GB.isMono(pal), sh = GB.PALETTES[pal].shades;
+
+    // flags on the roof: more flags in higher divisions
+    for (let i = 0; i <= div.tier + 1; i++) ctx.drawImage(GB.flag(pal, S.kit || "#e63946"), 12 + i * Math.floor(216 / (div.tier + 2)), -2);
+    // fans
+    let n = 0;
+    for (let r = 0; r < 6; r++) for (let x = 0; x < W - 8; x += 10) {
+      n++; const h = hash(n); if (h >= att) continue;
+      const shirt = h < att * 0.4 ? (S.kit || "#e63946") : ["#ffffff", "#8ecae6", "#ffb4a2", "#cdb4db", "#ffd166"][(h * 97 | 0) % 5];
+      const up = happy && (f8 + n) % 4 < 2;
+      ctx.drawImage(GB.fan(pal, shirt, ["#ffe0c7", "#f7d1b5", "#e0ac82", "#b57a52", "#7a4b2e"][(h * 53 | 0) % 5], ["#1f1a1c", "#3b2618", "#f2c45a", "#c4502a", "#666"][(h * 31 | 0) % 5], happy && n % 3 === 0), x - 1, 6 + r * 8 - (up ? 1 : 0));
+    }
+    // unlocked stadium upgrades
+    const lm = S.league.last;
+    if (PP.unlocked(S, "floodlights")) { ctx.drawImage(GB.floodlight(pal, true), 0, -4); ctx.drawImage(GB.floodlight(pal, true), W - 14, -4); }
+    if (PP.unlocked(S, "trophy")) ctx.drawImage(GB.trophy(pal), 2, 144);
+    const mt = matchShow ? matchTick(t, dt) : null;
+    if (mt || PP.unlocked(S, "bigscreen")) {
+      const text = mt ? `${abbr(club())} ${mt.us}-${mt.them} ${abbr(matchShow.data.opp)} ${mt.minute}'`
+        : lm ? `${abbr(club())} ${lm.gf}-${lm.ga} ${abbr(lm.opp)} FT` : abbr(club()) + " FC";
+      const tx = pixText(text, mono ? sh[0] : "#f8d048"), bw = tx.width + 8;
+      ctx.fillStyle = mono ? sh[3] : "#181820"; ctx.fillRect((W - bw) >> 1, 0, bw, 12);
+      ctx.fillStyle = mono ? sh[2] : "#606078"; ctx.fillRect((W - bw) >> 1, 11, bw, 1);
+      ctx.drawImage(tx, ((W - bw) >> 1) + 4, 2);
+    }
+    // board
+    const strip = adBoard(`${(S.club || "Pitch Pal FC").toUpperCase()}  ${"*".repeat(div.tier + 1)}  ${div.name.toUpperCase()}  `, mono ? sh[0] : "#f8d048");
+    const off = Math.floor(t * 20) % strip.width;
+    for (let x = -off; x < W; x += strip.width) ctx.drawImage(strip, x, 56);
+
+    // move the player
+    const o = GB.look(S);
+    let pose = "walk", jump = 0, em = null;
+    if (m === "injured" && !cheer && !matchShow) {
+      P.x = 112; P.y = 118; pose = "lie"; em = "zzz";
+    } else if (cheer) {
+      P.dir = "down"; pose = "stand"; jump = [0, 3, 5, 3, 0, 0][f8 % 6]; em = f8 % 16 < 8 ? "bang" : "heart";
+    } else {
+      if (P.wait > 0) {
+        P.wait -= dt; pose = "stand";
+        if (P.wait <= 0) pickTarget();
+        if (m === "struggling") em = "drop";
+        if (m === "fire") { em = f8 % 24 < 12 ? "note" : null; jump = Math.abs(Math.sin(t * 6)) * 2 | 0; }
+      } else {
+        const sp = (matchShow ? 40 : SPEED[m] || 24) * dt;
+        if (Math.abs(P.tx - P.x) > 0.5) { P.dir = P.tx > P.x ? "right" : "left"; P.x += Math.sign(P.tx - P.x) * Math.min(sp, Math.abs(P.tx - P.x)); }
+        else if (Math.abs(P.ty - P.y) > 0.5) { P.x = P.tx; P.dir = P.ty > P.y ? "down" : "up"; P.y += Math.sign(P.ty - P.y) * Math.min(sp, Math.abs(P.ty - P.y)); }
+        else { P.y = P.ty; P.wait = m === "struggling" ? 2 + Math.random() * 3 : 0.6 + Math.random() * 1.6; if (!["fire"].includes(m)) P.dir = "down"; }
+        P.step += sp;
+        if (m === "struggling") em = null;
+      }
+    }
+    // teammates and opponents during a match
+    if (matchShow) for (const n of matchShow.npcs) {
+      if (n.wait > 0) { n.wait -= dt; if (n.wait <= 0) { n.tx = 36 + Math.floor(Math.random() * 11) * 16; n.ty = 84 + Math.floor(Math.random() * 5) * 16; } }
+      else {
+        const sp = 34 * dt;
+        if (Math.abs(n.tx - n.x) > 0.5) { n.dir = n.tx > n.x ? "right" : "left"; n.x += Math.sign(n.tx - n.x) * Math.min(sp, Math.abs(n.tx - n.x)); }
+        else if (Math.abs(n.ty - n.y) > 0.5) { n.x = n.tx; n.dir = n.ty > n.y ? "down" : "up"; n.y += Math.sign(n.ty - n.y) * Math.min(sp, Math.abs(n.ty - n.y)); }
+        else { n.y = n.ty; n.wait = 0.3 + Math.random() * 1.2; }
+        n.step += sp;
+      }
+    }
+    const px = Math.round(P.x), py = Math.round(P.y);
+    if (matchShow) for (const n of matchShow.npcs.filter(n => n.y < P.y)) ctx.drawImage(GB.walker(n.o, n.dir, Math.floor(n.step / 6) % 2, pal), Math.round(n.x) - 8, Math.round(n.y) - 18);
+    // dithered shadow
+    ctx.fillStyle = mono ? sh[3] : "rgba(20,40,20,0.45)";
+    for (let dx = -6; dx <= 6; dx++) for (let dy = -1; dy <= 1; dy++) if ((dx + dy) & 1 && dx * dx / 36 + dy * dy / 2 <= 1) ctx.fillRect(px + dx, py + dy, 1, 1);
+    const ballImg = GB.ball(pal, Math.floor(P.step / 4) % 2);
+    const BALL = { down: [-4, -3], up: [-4, -12], left: [-14, -7], right: [6, -7] };
+    if (pose === "lie") {
+      const spr = GB.walker(o, "down", 0, pal);
+      ctx.save(); ctx.translate(px - 10, py - 1); ctx.rotate(-Math.PI / 2); ctx.drawImage(spr, 0, 0); ctx.restore();
+      ctx.drawImage(medkit, px + 10, py - 9); ctx.drawImage(ballImg, px + 22, py - 7);
+      ctx.drawImage(GB.emote(pal, em), px - 14, py - 28 + (f8 % 8 < 4 ? 0 : -1));
+    } else {
+      const frameNo = pose === "walk" ? (Math.floor(P.step / 6) % 2) : 0;
+      const spr = GB.walker(o, P.dir, frameNo, pal);
+      const juggling = m === "fire" && pose === "stand" && !cheer;
+      const [bx, by] = juggling ? [-4, -26 - (Math.abs(Math.sin(t * 5)) * 12 | 0)] : BALL[P.dir];
+      const ballBehind = P.dir === "up" && !juggling;
+      if (ballBehind) ctx.drawImage(ballImg, px + bx, py + by);
+      ctx.drawImage(spr, px - 8, py - 18 - jump);
+      if (!ballBehind) ctx.drawImage(ballImg, px + bx, py + by - (cheer ? 0 : 0));
+      if (em) ctx.drawImage(GB.emote(pal, em), px + 3, py - 31 - jump);
+    }
+    if (matchShow) for (const n of matchShow.npcs.filter(n => n.y >= P.y)) ctx.drawImage(GB.walker(n.o, n.dir, Math.floor(n.step / 6) % 2, pal), Math.round(n.x) - 8, Math.round(n.y) - 18);
+    vctx.imageSmoothingEnabled = false;
+    vctx.drawImage(buf, 0, 0, view.width, view.height);
+    drawPortrait(t);
+    requestAnimationFrame(frame);
+  }
+
+  PP.rollover(); render(); fitView(); requestAnimationFrame(frame);
+  renderReading(); refreshNews(false);
+  if (desktop && S.cal && S.cal.url) PP.syncCalendar().then(render);
+})();
+</script>
+</body>
+</html>

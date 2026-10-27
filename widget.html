@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pitch Pal buddy</title>
+<style>
+/* Transparent desktop player, 80x112: the walking sprite on a patch of grass, with a task-count badge. */
+@font-face { font-family: "PS2P Local"; src: url("fonts/PressStart2P.woff2") format("woff2"); }
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; }
+canvas { position: absolute; left: 0; top: 0; width: 80px; height: 112px; image-rendering: pixelated; -webkit-app-region: drag; cursor: grab; }
+#badge {
+  position: absolute; top: 2px; left: 2px; min-width: 18px; padding: 3px 4px 2px; text-align: center;
+  font: 8px/1 "PS2P Local", "Courier New", monospace; color: #181820; background: #f8f8f0;
+  border: 2px solid #181820; border-radius: 4px; cursor: pointer; -webkit-app-region: no-drag;
+}
+#badge.clear { background: #98d868; }
+#badge:hover { background: #ffe08a; }
+</style>
+</head>
+<body>
+<canvas id="c" width="20" height="28"></canvas>
+<button id="badge" type="button" title="Open Pitch Pal"></button>
+<script src="core.js"></script>
+<script src="gb.js"></script>
+<script src="sfx.js"></script>
+<script>
+(() => {
+  const view = document.getElementById("c"), ctx = view.getContext("2d"), badge = document.getElementById("badge");
+  let S = PP.load();
+
+  function refresh() {
+    S = PP.load();
+    const left = PP.isRest(S, PP.dayKey(PP.now(S))) ? 0 : PP.todayTasks(S).filter(t => !t.done).length;
+    badge.textContent = left ? String(left) : "OK";
+    badge.classList.toggle("clear", !left);
+    badge.title = (left ? `${left} task${left > 1 ? "s" : ""} left today` : "All training done today") + ". Click to open Pitch Pal.";
+  }
+  badge.addEventListener("click", () => window.desktop && window.desktop.openDashboard());
+  // Right-click: tick off today's tasks without opening the app.
+  addEventListener("contextmenu", e => { e.preventDefault(); window.desktop && window.desktop.buddyMenu && window.desktop.buddyMenu(); });
+  window.afterQuickTick = done => { refresh(); if (done) SFX.play(PP.todayTasks(S).every(t => t.done) ? "allDone" : "tick", S); };
+
+  addEventListener("storage", e => { if (e.key === PP.KEY) refresh(); });
+  setInterval(refresh, 2000);
+  // The desktop player is always running, so it handles midnight, the reminder popups and calendar syncing.
+  const showReminder = window.desktop ? window.desktop.showReminder : null;
+  setInterval(() => { PP.rollover(); PP.remind(showReminder); refresh(); }, 60000);
+  setTimeout(() => PP.remind(showReminder), 5000);
+  if (window.desktop) {
+    PP.clearTestOffset();
+    // One automatic backup a day, kept for two weeks.
+    const backup = () => window.desktop.autoBackup && window.desktop.autoBackup(PP.exportData());
+    backup(); setInterval(backup, 3 * 3600e3);
+    PP.syncCalendar().then(refresh);
+    setInterval(() => PP.syncCalendar().then(refresh), 15 * 60000);
+  }
+
+  const LOOK = ["down", "down", "left", "down", "right", "down"];
+  function frame(ms) {
+    const t = ms / 1000, f8 = Math.floor(t * 8), pal = S.palette || "color", m = PP.mood(S).k;
+    const o = GB.look(S), cheer = S.cheerUntil > Date.now(), mono = GB.isMono(pal), sh = GB.PALETTES[pal].shades;
+    ctx.clearRect(0, 0, 20, 28);
+    // grass patch
+    ctx.fillStyle = mono ? sh[1] : "#98d868";
+    ctx.fillRect(2, 25, 16, 2); ctx.fillRect(1, 26, 18, 1); ctx.fillRect(4, 24, 12, 1);
+    ctx.fillStyle = mono ? sh[2] : "#58a040"; ctx.fillRect(3, 27, 14, 1);
+    let dir = "down", step = 0, jump = 0, em = null;
+    if (m === "injured" && !cheer) {
+      const spr = GB.walker(o, "down", 0, pal);
+      ctx.save(); ctx.translate(0, 27); ctx.rotate(-Math.PI / 2); ctx.drawImage(spr, 0, -1); ctx.restore();
+      ctx.drawImage(GB.emote(pal, "zzz"), 8, 6 - (f8 % 8 < 4 ? 0 : 1));
+    } else {
+      if (cheer) { jump = [0, 2, 4, 2, 0, 0][f8 % 6]; em = "bang"; }
+      else if (m === "fire") { jump = f8 % 4 < 2 ? 1 : 0; step = f8 % 4 < 2 ? 1 : 0; em = f8 % 32 < 16 ? "note" : "heart"; }
+      else if (m === "steady") { dir = LOOK[Math.floor(t / 1.5) % LOOK.length]; step = dir === "down" ? 0 : Math.floor(t * 3) % 2; }
+      else { em = "drop"; }
+      ctx.drawImage(GB.walker(o, dir, step, pal), 2, 26 - 18 - jump);
+      if (em) ctx.drawImage(GB.emote(pal, em), 9, -1 - jump);
+    }
+    requestAnimationFrame(frame);
+  }
+  PP.rollover(); refresh(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
