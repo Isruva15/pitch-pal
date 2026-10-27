@@ -1,10 +1,14 @@
-# Builds the Windows installer and publishes it as a GitHub release when a version tag (v5.0.1, ...) is pushed.
+# Builds the Windows installer and publishes it as a GitHub release whenever the version in
+# package.json changes on main (or a v* tag is pushed). electron-builder creates the release and its tag.
 # Installed copies of Pitch Pal check these releases and update themselves.
 name: Release
 
 on:
   push:
+    branches: [main]
+    paths: [package.json, .github/workflows/release.yml]
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write

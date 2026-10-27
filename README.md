@@ -52,7 +52,7 @@ Right-click the little player on your desktop to tick off today's tasks without 
 Pitch Pal saves a backup every day and keeps two weeks of them (Backup & updates > Open backups folder). Export a backup to keep a copy anywhere; Import restores one.
 
 ## Updates and code signing
-- Automatic updates come from this repository's GitHub Releases. To ship a new version: raise `version` in package.json, commit, then push a tag like `v5.0.2`. The Release workflow builds the Windows installer and publishes it, and installed copies update themselves.
+- Automatic updates come from this repository's GitHub Releases. To ship a new version: raise `version` in package.json, commit and push to main. The Release workflow builds the Windows installer and publishes it, and installed copies update themselves.
 - To remove the "Windows protected your PC" warning, buy a code-signing certificate and set `CSC_LINK` (the .pfx file) and `CSC_KEY_PASSWORD` before `npm run dist`. electron-builder signs the installer automatically.
 
 ## How it plays
