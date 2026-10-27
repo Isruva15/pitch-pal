@@ -1,6 +1,6 @@
 // Offline support for the web app: serve the saved copy instantly, refresh it in the background.
 // Bump VERSION whenever the app's files change so phones pick up the new version.
-const VERSION = "pitchpal-web-5.0.1";
+const VERSION = "pitchpal-web-5.0.2";
 const FILES = ["./", "index.html", "core.js", "gb.js", "sfx.js", "news.js", "reading.js", "manifest.webmanifest",
   "fonts/PressStart2P.woff2", "fonts/VT323.woff2", "icons/apple-touch-icon.png", "icons/icon-192.png", "icons/icon-512.png"];
 

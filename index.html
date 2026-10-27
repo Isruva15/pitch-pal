@@ -1045,6 +1045,8 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
     $("pActive").closest(".box").querySelector(".note").textContent = "On iPhone the nudge appears inside Pitch Pal when you open it after these times, if tasks are still open. Clear a time to turn it off.";
   }
   if (desktop || webApp) $("skip").hidden = true;
+  // The calendar needs the PC app, so the phone/web version leaves it out.
+  if (!desktop) { $("weekTitle").closest("section").hidden = true; $("calOff").closest(".box").hidden = true; }
   // Without the desktop app there are no popups, so the nudge appears in the text box.
   function webNudge() {
     if (desktop || toastBusy || matchShow) return;
