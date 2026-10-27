@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pitch Pal</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pitch Pal">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#b8d0e8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
 <style>
@@ -59,6 +67,11 @@ h2 { font-family: var(--font-pixel); font-weight: 400; font-size: 12px; line-hei
 .fact .k { font-family: var(--font-pixel); font-size: 8px; color: var(--c2); text-transform: uppercase; }
 .fact .v { font-family: var(--font-pixel); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .fact.name .v { font-size: 16px; }
+@media (max-width: 560px) {
+  .card { grid-template-columns: 1fr; justify-items: start; }
+  .facts { grid-template-columns: 1fr 1fr; width: 100%; gap: 10px 14px; }
+  .fact.name .v { font-size: 14px; }
+}
 .status { display: inline-block; padding: 3px 6px; border: 2px solid var(--c3); border-radius: 4px; background: var(--c1); }
 
 .main, .lower { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
@@ -158,7 +171,7 @@ body.mono table.league tr.up td:first-child, body.mono table.league tr.down td:f
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--font-pixel); font-size: 8px; margin-bottom: 6px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend svg { width: 22px; height: 6px; }
-#chart { width: 100%; height: auto; display: block; overflow: visible; }
+#chart { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; }
 #chart text { font-family: var(--font-term); font-size: 15px; fill: var(--c2); }
 #chart .dl { font-family: var(--font-pixel); font-size: 8px; fill: var(--c3); }
 .tip { position: absolute; pointer-events: none; background: var(--c0); border: 3px solid var(--c3); border-radius: 6px; padding: 6px 8px; font-size: 18px; line-height: 1.15; white-space: nowrap; z-index: 2; }
@@ -463,6 +476,11 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
   const $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const desktop = window.desktop || null;
+  // Running as the installed iPhone/web app (not the PC app, not a local test copy).
+  const webApp = !desktop && /^https?:$/.test(location.protocol) && !/claude|localhost|127\.0\.0\.1/.test(location.hostname);
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !/claude/.test(location.hostname)) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
   let S = PP.load();
 
   // fill the customize menus
@@ -660,8 +678,7 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
       progRows.slice().reverse().filter(r => r.e !== undefined).map(r => `<tr><td>${fmt(r.k)}${r.live ? " (so far)" : ""}</td><td>${r.rest ? "Rest" : `${r.done}/${r.total}`}</td><td>${r.e}</td><td>${r.f}</td><td>${r.m}</td></tr>`).join("") + "</tbody>";
   }
   // crosshair + tooltip
-  $("chart").addEventListener("mousemove", e => {
-    if (e.target.id !== "hit") return;
+  function chartHover(e) {
     const box = $("chart").getBoundingClientRect(), sx = 600 / box.width;
     const i = Math.max(0, Math.min(29, Math.round(((e.clientX - box.left) * sx - X0) / ((X1 - X0) / 29))));
     const r = progRows[i]; if (!r || r.e === undefined) { $("tip").hidden = true; $("cross").setAttribute("visibility", "hidden"); $("hoverDots").innerHTML = ""; return; }
@@ -674,8 +691,11 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
     const left = e.clientX - fig.left + 14;
     tip.style.left = (left + tip.offsetWidth > fig.width ? left - tip.offsetWidth - 28 : left) + "px";
     tip.style.top = Math.max(0, e.clientY - fig.top - 40) + "px";
-  });
-  $("chart").addEventListener("mouseleave", () => { $("tip").hidden = true; const c = $("cross"); if (c) c.setAttribute("visibility", "hidden"); const h = $("hoverDots"); if (h) h.innerHTML = ""; });
+  }
+  $("chart").addEventListener("pointermove", chartHover);
+  $("chart").addEventListener("pointerdown", chartHover);
+  $("chart").addEventListener("pointerleave", e => {
+    if (e.pointerType === "touch") return; // on a phone, keep the reading until the next tap $("tip").hidden = true; const c = $("cross"); if (c) c.setAttribute("visibility", "hidden"); const h = $("hoverDots"); if (h) h.innerHTML = ""; });
 
   // ---------- badges ----------
   function renderBadges() {
@@ -753,9 +773,13 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
   $("replay").addEventListener("click", () => { $("pitch").scrollIntoView({ behavior: "smooth", block: "center" }); startMatch(S.league.last, true); });
 
   // ---------- backup & updates ----------
+  let pendingImport = null;
   if (!desktop) {
-    ["bkExport", "bkImport", "bkFolder", "upCheck"].forEach(id => $(id).disabled = true);
-    $("bkMsg").textContent = "Backups and updates work in the desktop app.";
+    // On the phone: backups are files you save to Files (or anywhere) and pick to restore.
+    $("bkFolder").hidden = true;
+    $("bkNote").textContent = "Save a backup to Files or iCloud Drive, and restore it here or on your PC. It's also how you move your player between devices.";
+    $("upNote").textContent = webApp ? "Pitch Pal updates itself: new versions load the next time you open it." : "Updates come with the app.";
+    $("upCheck").hidden = !webApp;
   } else {
     desktop.listBackups().then(l => { if (l.length) $("bkMsg").textContent = `Latest automatic backup: ${l[0].replace(/^pitchpal-|\.json$/g, "")}.`; });
     desktop.checkForUpdates().then(u => {
@@ -763,18 +787,35 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
     });
   }
   $("bkExport").addEventListener("click", async () => {
+    if (!desktop) {
+      const name = `Pitch Pal backup ${PP.dayKey(new Date())}.json`, blob = new Blob([PP.exportData()], { type: "application/json" });
+      const file = typeof File === "function" ? new File([blob], name, { type: "application/json" }) : null;
+      // The share sheet lets iPhone users save straight to Files; elsewhere it's a normal download.
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: "Pitch Pal backup" }); $("bkMsg").textContent = "Backup ready."; return; } catch (e) { if (e && e.name === "AbortError") return; }
+      }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      $("bkMsg").textContent = `Saved as "${name}".`;
+      return;
+    }
     const path = await desktop.exportBackup(PP.exportData());
     if (path) $("bkMsg").textContent = `Saved to ${path}`;
   });
-  let pendingImport = null;
-  $("bkImport").addEventListener("click", async () => {
-    const text = await desktop.importBackup(); if (!text) return;
+  function askRestore(text) {
     try {
       const d = JSON.parse(text); if (!d.state || !d.state.stats) throw 0;
       pendingImport = text;
       $("bkAsk").textContent = `Replace everything with the backup from ${new Date(d.savedAt).toLocaleString()}? `;
       $("bkConfirm").hidden = false;
     } catch (e) { $("bkMsg").textContent = "That file isn't a Pitch Pal backup."; }
+  }
+  const picker = Object.assign(document.createElement("input"), { type: "file", accept: ".json,application/json", hidden: true });
+  document.body.appendChild(picker);
+  picker.addEventListener("change", async () => { const f = picker.files[0]; picker.value = ""; if (f) askRestore(await f.text()); });
+  $("bkImport").addEventListener("click", async () => {
+    if (!desktop) { picker.click(); return; }
+    const text = await desktop.importBackup(); if (text) askRestore(text);
   });
   $("bkYes").addEventListener("click", () => {
     try { PP.importData(pendingImport); $("bkMsg").textContent = "Backup restored."; } catch (e) { $("bkMsg").textContent = e.message; }
@@ -783,6 +824,11 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
   $("bkNo").addEventListener("click", () => { pendingImport = null; $("bkConfirm").hidden = true; });
   $("bkFolder").addEventListener("click", () => desktop.openBackupFolder());
   $("upCheck").addEventListener("click", async () => {
+    if (!desktop) {
+      try { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.update(); } catch (e) {}
+      $("upNote").textContent = "Checked. If there's a new version, it loads the next time you open Pitch Pal.";
+      return;
+    }
     $("upCheck").disabled = true;
     const u = await desktop.checkForUpdates();
     $("upCheck").disabled = false;
@@ -801,7 +847,7 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
     $("calOff").hidden = on; $("calOn").hidden = !on;
     if (!desktop) {
       $("calConnect").disabled = true; $("calUrl").disabled = true;
-      $("calMsg").textContent = "Connect your calendar in the desktop app.";
+      $("calMsg").textContent = "Connect your calendar in Pitch Pal on your PC.";
     }
     if (!on) return;
     $("calStatus").innerHTML = cal.error ? `<span class="err">${esc(cal.error)}</span>` : cal.lastSync ? `Connected. Synced ${ago(cal.lastSync)}.` : "Connected. Syncing...";
@@ -907,7 +953,7 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
     const errs = Object.entries((newsData && newsData.errors) || {}).map(([id, m]) => `${srcName(id)}: ${String(m).replace(/\.$/, "")}`);
     $("newsWhen").textContent = newsBusy ? "Loading..." : newsData && newsData.fetchedAt ? `Updated ${ago(new Date(newsData.fetchedAt).toISOString())}` : "";
     $("newsRefresh").disabled = !desktop || newsBusy;
-    $("newsMsg").textContent = !desktop ? "News loads in the desktop app."
+    $("newsMsg").textContent = !desktop ? "News loads in Pitch Pal on your PC."
       : newsBusy ? ""
       : !items.length && errs.length ? `Couldn't load the news (${errs.join("; ")}). Check your internet connection, then press Refresh.`
       : !items.length ? "No stories yet. Press Refresh."
@@ -993,8 +1039,16 @@ body.mono .thumb::after { content: ""; position: absolute; inset: 0; background:
   });
   if (desktop) {
     $("preview").hidden = false; $("preview").addEventListener("click", () => desktop.showReminder());
-    $("skip").hidden = true;
+  } else {
+    $("pActive").closest(".box").querySelector(".note").textContent = "On iPhone the nudge appears inside Pitch Pal when you open it after these times, if tasks are still open. Clear a time to turn it off.";
   }
+  if (desktop || webApp) $("skip").hidden = true;
+  // Without the desktop app there are no popups, so the nudge appears in the text box.
+  function webNudge() {
+    if (desktop || toastBusy || matchShow) return;
+    PP.remind(() => { const n = PP.nudge(PP.load()); toastBusy = true; say(`${n.title} ${n.text}`); SFX.play("chime", S); setTimeout(() => { toastBusy = false; lastSay = ""; render(); }, 6000); });
+  }
+  setInterval(webNudge, 60000); setTimeout(webNudge, 2500);
   $("skip").addEventListener("click", () => { PP.update(s => s.offset = (s.offset || 0) + 1); PP.rollover(); render(); });
   $("reset").addEventListener("click", () => { $("reset").hidden = true; $("confirm").hidden = false; });
   $("no").addEventListener("click", () => { $("reset").hidden = false; $("confirm").hidden = true; });

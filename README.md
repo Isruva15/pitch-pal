@@ -67,6 +67,14 @@ Name, number, club name, hairstyle (spiky, short, long, curly, buzz, ponytail), 
 
 All art is original pixel art in a classic handheld style.
 
+## On iPhone
+Pitch Pal also runs as a web app published with GitHub Pages (`https://<your-github-username>.github.io/pitch-pal/`).
+1. Open that address in Safari.
+2. Tap Share, then **Add to Home Screen**.
+3. Open Pitch Pal from its new icon. It works offline after the first visit and updates itself.
+
+On iPhone the reminder shows inside the app when you open it, and the calendar and news stay on the PC version. To move your player between PC and iPhone, export a backup on one and import it on the other.
+
 ## Build
 ```
 npm install

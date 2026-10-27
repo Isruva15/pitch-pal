@@ -1,0 +1,16 @@
+{
+  "name": "Pitch Pal",
+  "short_name": "Pitch Pal",
+  "description": "A handheld-game-style soccer player whose form depends on your daily tasks.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#b8d0e8",
+  "theme_color": "#b8d0e8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
