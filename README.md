@@ -52,7 +52,7 @@ Right-click the little player on your desktop to tick off today's tasks without 
 Pitch Pal saves a backup every day and keeps two weeks of them (Backup & updates > Open backups folder). Export a backup to keep a copy anywhere; Import restores one.
 
 ## Updates and code signing
-- Automatic updates are built in but switched off until new versions are published somewhere the app can download them from, such as GitHub Releases. Add a `publish` section to `build` in package.json (for example `{ "provider": "github", "owner": "you", "repo": "pitch-pal" }`) and publish with `npm run dist -- --publish always` and a `GH_TOKEN`.
+- Automatic updates come from this repository's GitHub Releases. To ship a new version: raise `version` in package.json, commit, then push a tag like `v5.0.2`. The Release workflow builds the Windows installer and publishes it, and installed copies update themselves.
 - To remove the "Windows protected your PC" warning, buy a code-signing certificate and set `CSC_LINK` (the .pfx file) and `CSC_KEY_PASSWORD` before `npm run dist`. electron-builder signs the installer automatically.
 
 ## How it plays
@@ -68,7 +68,7 @@ Name, number, club name, hairstyle (spiky, short, long, curly, buzz, ponytail), 
 All art is original pixel art in a classic handheld style.
 
 ## On iPhone
-Pitch Pal also runs as a web app published with GitHub Pages (`https://<your-github-username>.github.io/pitch-pal/`).
+Pitch Pal also runs as a web app published with GitHub Pages (https://isruva15.github.io/pitch-pal/).
 1. Open that address in Safari.
 2. Tap Share, then **Add to Home Screen**.
 3. Open Pitch Pal from its new icon. It works offline after the first visit and updates itself.

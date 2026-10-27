@@ -1,6 +1,6 @@
 {
   "name": "pitch-pal",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "A handheld-game-style soccer player who lives on your desktop and whose form depends on your daily tasks.",
   "main": "main.js",
   "scripts": {
@@ -47,10 +47,19 @@
       "target": "AppImage",
       "icon": "build/icon.png"
     },
-    "publish": null
+    "publish": {
+      "provider": "github",
+      "owner": "Isruva15",
+      "repo": "pitch-pal",
+      "releaseType": "release"
+    }
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
     "node-ical": "^0.20.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Isruva15/pitch-pal.git"
   }
 }
